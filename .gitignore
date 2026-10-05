@@ -1,0 +1,37 @@
+# Секреты
+key.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Кэши
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Логи и временные файлы
+*.log
+*.tmp
+artifacts/
+temp/
+output/
+
+# Бинарники
+*.o
+*.exe
+*.class
+*.jar
+
+# Редакторы
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
