@@ -1,0 +1,19 @@
+{
+  "_readme": "Вставь свои API-ключи вместо пустых строк ниже. Достаточно одного — остальные можно оставить пустыми и настроить позже. Ключи, которые ты не хочешь использовать, оставь пустыми строками. Файл можно редактировать в любой момент.",
+  "_links": {
+    "mistral": "https://console.mistral.ai/api-keys",
+    "qwen": "https://dashscope.console.aliyun.com/apiKey",
+    "deepseek": "https://platform.deepseek.com/api_keys",
+    "openrouter": "https://openrouter.ai/keys"
+  },
+  "_notes": {
+    "mistral": "Бесплатный тариф. Работает из России. Модель по умолчанию: mistral-large-latest.",
+    "qwen": "1000 запросов в день бесплатно. Работает из России. Модель по умолчанию: qwen3-coder-plus.",
+    "deepseek": "5M бесплатных токенов при регистрации. Работает из России. Модель по умолчанию: deepseek-chat.",
+    "openrouter": "50 запросов в день на бесплатные модели. Работает из России. Модель по умолчанию: qwen/qwen3-coder:free."
+  },
+  "mistral": "Ключ",
+  "qwen": "Ключ",
+  "deepseek": "Ключ",
+  "openrouter": "Ключ"
+}
