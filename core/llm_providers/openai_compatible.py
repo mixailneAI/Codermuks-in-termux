@@ -29,6 +29,7 @@ from core.llm_providers.base import (
     ChatMessage,
     LLMProvider,
     ProviderAuthError,
+    ProviderError,
     ProviderNetworkError,
     ProviderNotConfiguredError,
     ProviderRateLimitError,
