@@ -247,11 +247,26 @@ KEYS
 fi
 
 # Проверяем, есть ли хотя бы один заполненный ключ.
+# Проверяем ключи через Python — он честно разбирает JSON и
+# игнорирует служебные поля (_readme, _links), в отличие от grep.
 HAS_KEY=0
 if [ -f "$KEY_FILE" ]; then
-    # Считаем количество пустых значений. Если все пустые — предупреждаем.
-    NON_EMPTY=$(grep -E '"(mistral|qwen|deepseek|openrouter)"\s*:\s*"[^"]+"' "$KEY_FILE" 2>/dev/null | wc -l)
-    if [ "$NON_EMPTY" -gt 0 ]; then
+    RESULT=$(python3 - "$KEY_FILE" <<'PYCHECK'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        data = json.load(f)
+    for name in ("mistral", "qwen", "deepseek", "openrouter"):
+        value = data.get(name, "")
+        if isinstance(value, str) and value.strip() and not value.startswith("http"):
+            print("yes")
+            sys.exit(0)
+    print("no")
+except Exception:
+    print("no")
+PYCHECK
+)
+    if [ "$RESULT" = "yes" ]; then
         HAS_KEY=1
     fi
 fi
