@@ -249,6 +249,8 @@ fi
 # Проверяем, есть ли хотя бы один заполненный ключ.
 # Проверяем ключи через Python — он честно разбирает JSON и
 # игнорирует служебные поля (_readme, _links), в отличие от grep.
+# Проверяем ключи через Python. Он честно разбирает JSON и отбрасывает
+# любые заглушки типа "ВСТАВЬ_СЮДА", "INSERT_KEY", "your-key-here" и ссылки.
 HAS_KEY=0
 if [ -f "$KEY_FILE" ]; then
     RESULT=$(python3 - "$KEY_FILE" <<'PYCHECK'
@@ -256,21 +258,41 @@ import json, sys
 try:
     with open(sys.argv[1], encoding="utf-8") as f:
         data = json.load(f)
-    for name in ("mistral", "qwen", "deepseek", "openrouter"):
-        value = data.get(name, "")
-        if isinstance(value, str) and value.strip() and not value.startswith("http"):
-            print("yes")
-            sys.exit(0)
-    print("no")
 except Exception:
     print("no")
+    sys.exit(0)
+
+STUBS = (
+    "ВСТАВЬ", "INSERT", "YOUR_KEY", "YOUR-KEY", "YOURKEY",
+    "PLACEHOLDER", "ЗАГЛУШКА", "TODO", "XXX", "CHANGE_ME",
+    "PUT_YOUR", "REPLACE",
+)
+
+for name in ("mistral", "qwen", "deepseek", "openrouter"):
+    value = data.get(name, "")
+    if not isinstance(value, str):
+        continue
+    v = value.strip()
+    if not v:
+        continue
+    if v.startswith("http"):
+        continue
+    upper = v.upper()
+    if any(stub in upper for stub in STUBS):
+        continue
+    # Реальный ключ должен быть длиной хотя бы 16 символов.
+    if len(v) < 16:
+        continue
+    print("yes")
+    sys.exit(0)
+
+print("no")
 PYCHECK
 )
     if [ "$RESULT" = "yes" ]; then
         HAS_KEY=1
     fi
 fi
-
 if [ "$HAS_KEY" -eq 0 ]; then
     log_warn "Ни один API-ключ не заполнен."
     log_warn "Открой файл и вставь хотя бы один ключ: nano $KEY_FILE"
