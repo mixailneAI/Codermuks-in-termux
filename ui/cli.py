@@ -198,13 +198,17 @@ class ReasoningDisplay:
     Показывает:
         ⏱ 00:42  ·  текущий шаг агента
 
-    Все строки берутся из i18n.
+    Обновляется из фонового потока каждые 0.25 секунды, чтобы
+    таймер тикал даже когда агент молчит (например, во время
+    запроса к API).
     """
 
     def __init__(self) -> None:
         self._started_at: float = 0.0
         self._current_step: str = ""
         self._live: Live | None = None
+        self._update_thread = None
+        self._stop_event = None
 
     def _render(self) -> Panel:
         """Собирает текст текущего состояния в панель."""
@@ -212,9 +216,9 @@ class ReasoningDisplay:
         timer_text = helpers.format_duration(elapsed)
 
         content = Text()
-        content.append("⏱  ", style=COLOR_ACCENT)
+        content.append("\u23f1  ", style=COLOR_ACCENT)
         content.append(timer_text, style=f"bold {COLOR_MAIN}")
-        content.append("   ·   ", style=COLOR_DIM)
+        content.append("   \u00b7   ", style=COLOR_DIM)
         content.append(
             self._current_step or t("status.thinking"),
             style=COLOR_WARN,
@@ -226,10 +230,23 @@ class ReasoningDisplay:
             padding=(0, 2),
         )
 
+    def _auto_refresh(self) -> None:
+        """Фоновый поток: обновляет отображение каждые 0.25 сек."""
+        while not self._stop_event.is_set():
+            try:
+                if self._live is not None:
+                    self._live.update(self._render())
+            except Exception:
+                pass
+            time.sleep(0.25)
+
     def start(self) -> None:
-        """Запускает живой блок."""
+        """Запускает живой блок и фоновый поток обновления."""
+        import threading
+
         self._started_at = time.time()
         self._current_step = t("status.thinking")
+
         self._live = Live(
             self._render(),
             console=console,
@@ -238,11 +255,16 @@ class ReasoningDisplay:
         )
         self._live.start()
 
+        self._stop_event = threading.Event()
+        self._update_thread = threading.Thread(
+            target=self._auto_refresh,
+            daemon=True,
+        )
+        self._update_thread.start()
+
     def update(self, step_name: str, detail: str = "") -> None:
         """Обновляет текущий шаг."""
-        # Пробуем перевести имя шага (например, "планирование").
         translated = t(f"status.{step_name}") if step_name else ""
-        # Если ключа нет — используем как есть.
         if translated == f"status.{step_name}":
             translated = step_name
 
@@ -250,17 +272,27 @@ class ReasoningDisplay:
         if detail:
             self._current_step += f" — {detail}"
 
-        if self._live is not None:
-            self._live.update(self._render())
-
     def stop(self) -> float:
-        """
-        Останавливает живой блок и возвращает итоговое время.
-        """
+        """Останавливает живой блок и возвращает итоговое время."""
         elapsed = time.time() - self._started_at
+
+        if self._stop_event is not None:
+            self._stop_event.set()
+
+        if self._update_thread is not None:
+            try:
+                self._update_thread.join(timeout=1.0)
+            except Exception:
+                pass
+            self._update_thread = None
+
         if self._live is not None:
-            self._live.stop()
+            try:
+                self._live.stop()
+            except Exception:
+                pass
             self._live = None
+
         return elapsed
 
 

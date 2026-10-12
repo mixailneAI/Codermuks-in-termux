@@ -188,7 +188,7 @@ else
   "providers": {
     "mistral": {
       "enabled": true,
-      "model": "mistral-large-latest",
+      "model": "codestral-latest",
       "base_url": "https://api.mistral.ai/v1",
       "api_key": ""
     },

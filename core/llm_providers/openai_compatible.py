@@ -274,7 +274,7 @@ class OpenAICompatibleProvider(LLMProvider):
                  "finish_reason": "stop"}
               ],
               "usage": {"prompt_tokens": 10, "completion_tokens": 20, ...},
-              "model": "mistral-large-latest"
+              "model": "codestral-latest"
             }
         """
         text = ""

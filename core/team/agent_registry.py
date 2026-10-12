@@ -34,7 +34,7 @@ class AgentInfo:
         name            — короткое имя (ключ в config.json): "mistral"
         display_name    — красивое имя для UI: "Mistral AI"
         description_key — i18n-ключ описания: "agent.mistral.desc"
-        default_model   — модель по умолчанию: "mistral-large-latest"
+        default_model   — модель по умолчанию: "codestral-latest"
         order           — порядок в меню /changeagent (1, 2, 3, 4)
         is_default_lead — является ли агентом по умолчанию
     """
@@ -87,7 +87,7 @@ class AgentRegistry:
                 name="mistral",
                 display_name="Mistral AI",
                 description_key="agent.mistral.desc",
-                default_model="mistral-large-latest",
+                default_model="codestral-latest",
                 order=1,
                 is_default_lead=True,
             ),

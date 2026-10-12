@@ -29,7 +29,7 @@ class TestAgentInfo:
             name="mistral",
             display_name="Mistral AI",
             description_key="agent.mistral.desc",
-            default_model="mistral-large-latest",
+            default_model="codestral-latest",
             order=1,
             is_default_lead=True,
         )

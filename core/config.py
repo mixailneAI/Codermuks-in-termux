@@ -55,7 +55,7 @@ TEMP_DIR: Path = USER_DIR / "temp"                # временные файл�
 DEFAULT_PROVIDERS: dict[str, dict[str, Any]] = {
     "mistral": {
         "enabled": True,
-        "model": "mistral-large-latest",
+        "model": "codestral-latest",
         "base_url": "https://api.mistral.ai/v1",
         "api_key": "",
     },
@@ -94,9 +94,9 @@ SUPPORTED_LANGUAGES: list[str] = ["en", "ru"]
 #  МОДЕЛИ MISTRAL (оставлены для совместимости с core/mistral_client.py)
 # =============================================================================
 
-PLANNER_MODEL: str = "mistral-large-latest"
+PLANNER_MODEL: str = "codestral-latest"
 CODING_MODEL: str = "codestral-latest"
-RESEARCH_MODEL: str = "mistral-large-latest"
+RESEARCH_MODEL: str = "codestral-latest"
 FAST_MODEL: str = "mistral-small-latest"
 
 

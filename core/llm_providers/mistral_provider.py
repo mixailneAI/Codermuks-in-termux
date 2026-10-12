@@ -5,7 +5,7 @@
 #
 #  API: https://api.mistral.ai/v1
 #  Модели:
-#      • mistral-large-latest  — самая умная, для планирования и анализа
+#      • codestral-latest  — самая умная, для планирования и анализа
 #      • codestral-latest      — специально для кода
 #      • mistral-small-latest  — быстрая, для простых задач
 #
@@ -36,7 +36,7 @@ class MistralProvider(OpenAICompatibleProvider):
 
     name: str = "mistral"
     display_name: str = "Mistral AI"
-    default_model: str = "mistral-large-latest"
+    default_model: str = "codestral-latest"
 
 
 # =============================================================================

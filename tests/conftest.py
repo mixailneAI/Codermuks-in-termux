@@ -84,7 +84,7 @@ def clean_config(user_dir):
         "providers": {
             "mistral": {
                 "enabled": True,
-                "model": "mistral-large-latest",
+                "model": "codestral-latest",
                 "base_url": "https://api.mistral.ai/v1",
                 "api_key": "",
             },
@@ -158,7 +158,7 @@ def config_with_mistral_key(user_dir):
         "providers": {
             "mistral": {
                 "enabled": True,
-                "model": "mistral-large-latest",
+                "model": "codestral-latest",
                 "base_url": "https://api.mistral.ai/v1",
                 "api_key": "",
             },

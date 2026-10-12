@@ -226,7 +226,7 @@ class TestProviders:
         provider = config.get_provider("mistral")
 
         assert provider is not None
-        assert provider["model"] == "mistral-large-latest"
+        assert provider["model"] == "codestral-latest"
         assert provider["base_url"] == "https://api.mistral.ai/v1"
 
     def test_get_unknown_provider(self, clean_config):

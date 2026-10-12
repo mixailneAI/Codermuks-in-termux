@@ -65,12 +65,12 @@ class TestProviderResponse:
         resp = ProviderResponse(
             text="hello",
             provider="mistral",
-            model="mistral-large-latest",
+            model="codestral-latest",
             finish_reason="stop",
         )
         assert resp.text == "hello"
         assert resp.provider == "mistral"
-        assert resp.model == "mistral-large-latest"
+        assert resp.model == "codestral-latest"
 
     def test_bool_true(self):
         """Непустой ответ — истинный."""
@@ -192,7 +192,7 @@ class TestProviderMetadata:
         p = MistralProvider()
         assert p.name == "mistral"
         assert p.display_name == "Mistral AI"
-        assert p.default_model == "mistral-large-latest"
+        assert p.default_model == "codestral-latest"
 
     def test_qwen_metadata(self):
         """QwenProvider имеет корректные метаданные."""

@@ -1,5 +1,5 @@
 {
-  "_readme": "Вставь свои API-ключи вместо пустых строк. Достаточно одного — остальные оставь пустыми.",
+  "_readme": "Вставь свои API-ключи вместо пустых строк. Достаточно одного — остальные оставь пустыми. Ссылки на получение ключей ниже в _links.",
   "_links": {
     "mistral": "https://console.mistral.ai/api-keys",
     "qwen": "https://dashscope.console.aliyun.com/apiKey",

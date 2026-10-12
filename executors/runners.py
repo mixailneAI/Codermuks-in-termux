@@ -227,6 +227,7 @@ def _run_subprocess(
             text=True,
             timeout=timeout,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
         return (
             proc.stdout or "",
