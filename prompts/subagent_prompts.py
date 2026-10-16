@@ -1,114 +1,108 @@
-
 # =============================================================================
-#  Codermuks in Termux — шаблоны задач для субагентов
+#  Codermuks in Termux — шаблоны задач для субагентов v1.2.0
 # =============================================================================
-#  Здесь живут шаблоны пользовательских сообщений, которые оркестратор
-#  отправляет субагентам и моделям. В отличие от системных промптов
-#  (prompts/templates.py), эти шаблоны содержат конкретные данные:
-#  запрос пользователя, план, код, ошибки компиляции.
-#
-#  Все шаблоны используют именованные плейсхолдеры {name}, которые
-#  подставляются через str.format(). Это позволяет легко менять
-#  формулировки, не трогая логику агента.
+#  Что нового в v1.2.0:
+#    • PROJECT_DECIDER_TASK_TEMPLATE — определяет, куда писать код;
+#    • PLANNER_TASK_TEMPLATE — теперь с контекстом проекта;
+#    • CODER_TASK_TEMPLATE — теперь с существующими файлами;
+#    • FIXER_TASK_TEMPLATE — замена старого FIX_TASK_TEMPLATE.
 # =============================================================================
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ ПЛАНИРОВЩИКА
+#  РЕШАТЕЛЬ ПРОЕКТА
 # =============================================================================
-#  Отправляется модели-планировщику вместе с SYSTEM_PLANNER.
-#  Плейсхолдеры:
-#      {query} — исходный запрос пользователя
+#  Быстрое определение: продолжить существующий проект или создать новый.
+# =============================================================================
+
+PROJECT_DECIDER_TASK_TEMPLATE = """User request:
+
+{query}
+
+Existing projects:
+
+{projects_list}
+
+Decide where this request should go and return JSON with action,
+project_name and reason.
+"""
+
+
+# =============================================================================
+#  ПЛАНИРОВЩИК
+# =============================================================================
+#  Полноценный план для кодера — с учётом проекта и контекста.
 # =============================================================================
 
 PLANNER_TASK_TEMPLATE = """User request:
 
 {query}
 
-Produce a structured plan following the format described in your system prompt.
-Remember: do NOT write code. Only identify the language, the goal, the steps, the required libraries, and the edge cases.
+Target project: {project_name}
+Project language: {language}
+
+Existing files in project:
+{files_list}
+
+Previous tasks in this project:
+{history_context}
+
+Create a JSON plan for the coder following the format described in your system prompt.
 """
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ КОДЕРА (первичная генерация)
-# =============================================================================
-#  Отправляется кодеру вместе с SYSTEM_CODER. Содержит исходный запрос,
-#  план от планировщика и (опционально) материалы исследования.
-#  Плейсхолдеры:
-#      {query}    — исходный запрос пользователя
-#      {plan}     — план от планировщика
-#      {research} — контекст из интернета (или пометка, что его нет)
+#  КОДЕР
 # =============================================================================
 
 CODER_TASK_TEMPLATE = """User request:
 
 {query}
 
-Plan from the planning module:
+Project: {project_name}
+Language: {language}
+
+Plan:
 
 {plan}
 
-Research context:
+Existing files that will be modified (full content):
 
-{research}
+{existing_files}
 
-Write the complete, compilable, runnable code that fulfills the user's request following the plan.
-Return exactly one code block, with the language tag on the opening line. Do not add any text outside the block.
+Create or update all files according to the plan.
+Return each file with `### FILE: <relative path>` marker and a code block.
 """
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ КОДЕРА (исправление ошибки)
-# =============================================================================
-#  Отправляется кодеру, когда компиляция или запуск упали. Содержит
-#  текущий код и сообщение об ошибке.
-#  Плейсхолдеры:
-#      {language}  — язык, на котором написан код
-#      {code}      — текущий код
-#      {stderr}    — ошибки компиляции или исполнения
-#      {stdout}    — что программа успела напечатать
-#      {iteration} — номер попытки исправления (1, 2, 3...)
+#  ФИКСЕР
 # =============================================================================
 
-FIX_TASK_TEMPLATE = """The previous version of the code failed to compile or run cleanly. This is fix attempt #{iteration}.
+FIXER_TASK_TEMPLATE = """The previous version failed. This is fix attempt #{iteration}.
 
+Project: {project_name}
 Language: {language}
 
-Current code:
+Current content of files that may need fixes:
 
-```
-
-{code}
-
-```
+{current_files}
 
 Compiler / runtime output:
 
 --- stdout ---
 {stdout}
+
 --- stderr ---
 {stderr}
 
-Analyze the error carefully and return a corrected version of the ENTIRE program.
-
-Rules:
-- Return exactly one complete code block, with the language tag on the opening line.
-- Include the whole program, not just the changed parts.
-- Do not add explanations or comments outside the code block.
-- Do not change the language unless the error clearly indicates the language is unsupported.
-- If the error is caused by a missing library, replace it with a standard-library alternative.
-- If the error is caused by a timeout, make the program faster or reduce its work.
+Return the full corrected content of each file that needs changes.
+Use `### FILE: <relative path>` markers.
 """
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ ИССЛЕДОВАТЕЛЯ
-# =============================================================================
-#  Отправляется модели-исследователю вместе с SYSTEM_RESEARCHER.
-#  Плейсхолдеры:
-#      {query}     — исходный запрос пользователя
-#      {materials} — собранные материалы из web и GitHub
+#  ИССЛЕДОВАТЕЛЬ
 # =============================================================================
 
 RESEARCH_TASK_TEMPLATE = """The user asked:
@@ -119,19 +113,13 @@ Raw materials collected from the internet:
 
 {materials}
 
-Compress these materials into a short, useful summary following the format described in your system prompt.
-Focus only on what will help the coding module write better code for this specific task.
+Compress these materials into a short, useful summary following
+the format described in your system prompt.
 """
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ АНАЛИТИКА
-# =============================================================================
-#  Отправляется модели-аналитику вместе с SYSTEM_ANALYZER.
-#  Плейсхолдеры:
-#      {language} — язык кода
-#      {code}     — код для анализа
-#      {question} — дополнительный вопрос пользователя (может быть пустым)
+#  АНАЛИТИК
 # =============================================================================
 
 ANALYZE_TASK_TEMPLATE = """Please review the following {language} code.
@@ -153,32 +141,20 @@ Produce a structured review following the format described in your system prompt
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ РЕЖИМА РАССУЖДЕНИЙ
-# =============================================================================
-#  Отправляется модели в режиме /reason вместе с SYSTEM_REASONING.
-#  Плейсхолдеры:
-#      {query} — запрос пользователя
+#  РЕЖИМ РАССУЖДЕНИЙ
 # =============================================================================
 
 REASONING_TASK_TEMPLATE = """The user asked:
 
 {query}
 
-Think through this request step by step and produce the reasoning chain followed by a short final answer, as described in your system prompt.
+Think through this request step by step and produce the reasoning chain
+followed by a short final answer.
 """
 
 
 # =============================================================================
-#  ЗАДАЧА ДЛЯ СУБАГЕНТА-ФАЙЛОВОГО МЕНЕДЖЕРА
-# =============================================================================
-#  Используется, когда оркестратор хочет попросить файлового менеджера
-#  выполнить действие, но само действие уже описано в kwargs
-#  (action, path, content). Этот шаблон — резервный, для случая, когда
-#  файловая операция идёт через текстовый интерфейс.
-#  Плейсхолдеры:
-#      {action} — что нужно сделать (read / write / patch / delete / list)
-#      {path}   — путь к файлу или директории
-#      {extra}  — дополнительный контекст (содержимое, старый фрагмент и т. п.)
+#  ФАЙЛОВЫЙ МЕНЕДЖЕР (резервный)
 # =============================================================================
 
 FILE_MANAGER_TASK_TEMPLATE = """File operation request:
@@ -192,3 +168,19 @@ Additional context:
 
 Perform the requested operation and report the result in one short line.
 """
+
+
+# =============================================================================
+#  ЭКСПОРТ
+# =============================================================================
+
+__all__ = [
+    "PROJECT_DECIDER_TASK_TEMPLATE",
+    "PLANNER_TASK_TEMPLATE",
+    "CODER_TASK_TEMPLATE",
+    "FIXER_TASK_TEMPLATE",
+    "RESEARCH_TASK_TEMPLATE",
+    "ANALYZE_TASK_TEMPLATE",
+    "REASONING_TASK_TEMPLATE",
+    "FILE_MANAGER_TASK_TEMPLATE",
+]

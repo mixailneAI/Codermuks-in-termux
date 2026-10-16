@@ -1,110 +1,71 @@
 # =============================================================================
-#  Codermuks in Termux — главный агент (TeamLead) v1.1.0
+#  Codermuks in Termux — главный агент (TeamLead) v1.2.0
 # =============================================================================
-#  TeamLead — центральный координатор мультиагентной системы.
-#
-#  Что делает TeamLead:
-#    1. Получает запрос пользователя.
-#    2. Читает из реестра, какой агент сейчас лидер.
-#    3. Планирует задачу через модель лидера.
-#    4. Решает, каких специалистов позвать из команды:
-#         • coder   — писать код (обычно Qwen или лидер);
-#         • tester  — компилировать и запускать (любой агент);
-#         • researcher — искать в интернете (лидер);
-#    5. Прогоняет цикл «генерация → компиляция → фикс» до успеха.
-#    6. Возвращает финальный AgentResult.
-#
-#  Отличия от старой логики в core/agent.py:
-#    • используется любой провайдер, а не только Mistral;
-#    • планировщик — модель лидера, а не всегда Mistral Large;
-#    • при падении лидера вызывается fallback (см. fallback.py);
-#    • все строки идут через i18n.
+#  Что нового:
+#    • Работа через Project (создание/открытие реальных папок).
+#    • EventBus — real-time события для UI.
+#    • JSON-планирование (action, project_name, plan).
+#    • Формат ### FILE: для многофайловых проектов.
+#    • История задач проекта.
 # =============================================================================
 
 from __future__ import annotations
 
+import json
+import re
 import time
+from pathlib import Path
 from typing import Any, Callable
 
-from core.team.agent_registry import AgentInfo, get_registry
-from core.i18n import t
+from core.events import emit, LEVEL_INFO, LEVEL_SUCCESS, LEVEL_ERROR, LEVEL_PROGRESS
+from core.project import Project
+from core.team.agent_registry import get_registry
+from core.workspace import list_projects
 
 
-# =============================================================================
-#  ИМПОРТЫ ИЗ КОРНЯ (ленивые — внутри методов)
-# =============================================================================
-#  AgentResult и Step лежат в core/agent.py. Импортируем их лениво,
-#  чтобы не создавать циклических зависимостей (agent.py сам зовёт
-#  TeamLead в _solve_via_team).
-# =============================================================================
+# Регулярка для парсинга ### FILE: <path> + ```lang\n...```
+FILE_BLOCK_RE = re.compile(
+    r"###\s*FILE:\s*(?P<path>[^\s]+)\s*\n"
+    r"```[a-zA-Z0-9_+\-#]*\s*\n"
+    r"(?P<content>.*?)"
+    r"\n```",
+    re.DOTALL,
+)
 
-
-# =============================================================================
-#  TEAM LEAD
-# =============================================================================
 
 class TeamLead:
-    """
-    Главный агент, координирующий работу команды.
+    """Главный агент, координирующий работу команды."""
 
-    Экземпляр создаётся на каждый запрос — так проще отслеживать
-    состояние конкретной задачи (шаги, заметки, таймер).
-    """
-
-    def __init__(
-        self,
-        on_step: Callable[[Any], None] | None = None,
-    ) -> None:
-        """
-        Аргументы:
-            on_step — колбэк, который вызывается на каждом шаге.
-                       Используется CLI для обновления таймера.
-        """
+    def __init__(self, on_step: Callable[[Any], None] | None = None) -> None:
         self.on_step = on_step
         self.steps: list[Any] = []
         self.notes: list[str] = []
         self._started_at: float = 0.0
-
-        # Реестр агентов (singleton).
         self.registry = get_registry()
-
-        # Имя лидера — заполняется в solve().
         self.lead_name: str = ""
-
-        # Экземпляр провайдера лидера — заполняется в solve().
         self.lead_provider: Any = None
+        self.project: Project | None = None
 
-    # -------------------------------------------------------------------------
-    #  Вспомогательные методы
-    # -------------------------------------------------------------------------
+    # --- Шаги ------------------------------------------------------------
 
     def _begin_step(self, name: str, detail: str) -> Any:
-        """
-        Открывает новый шаг рассуждения.
-
-        Создаёт объект Step (из core/agent.py) и уведомляет подписчика.
-        Импорт ленивый — чтобы не тянуть core/agent.py сразу.
-        """
         from core.agent import Step
-
         step = Step(name=name, detail=detail, started_at=time.time())
         self.steps.append(step)
-
         if self.on_step is not None:
             try:
                 self.on_step(step)
             except Exception:
-                # Ошибки колбэка не должны валить работу.
                 pass
         return step
 
     def _end_step(self, step: Any) -> None:
-        """Закрывает шаг и считает его длительность."""
         step.duration = time.time() - step.started_at
 
     def _note(self, message: str) -> None:
-        """Добавляет заметку в список."""
         self.notes.append(message)
+
+    # --- Результат -------------------------------------------------------
 
     def _build_result(
         self,
@@ -119,13 +80,7 @@ class TeamLead:
         plan: str = "",
         used_model: str = "",
     ) -> Any:
-        """
-        Собирает финальный AgentResult.
-
-        Импорт AgentResult ленивый — по той же причине, что и Step.
-        """
         from core.agent import AgentResult
-
         return AgentResult(
             success=success,
             language=language,
@@ -143,11 +98,6 @@ class TeamLead:
         )
 
     def _lead_model(self) -> str:
-        """
-        Возвращает имя модели текущего лидера.
-
-        Если провайдер не создан — вернёт пустую строку.
-        """
         if self.lead_provider is None:
             return ""
         try:
@@ -155,463 +105,352 @@ class TeamLead:
         except Exception:
             return ""
 
-    def _chat_with_lead(
-        self,
-        messages: list[dict[str, str]],
-        *,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
-    ) -> str:
-        """
-        Отправляет запрос лидеру. При ошибке — срабатывает fallback.
+    # --- Общение с лидером ----------------------------------------------
 
-        Возвращает текст ответа. Если ответа нет — пустую строку.
-
-        Исключения:
-            Пробрасывает ошибки, если fallback тоже не смог.
-        """
-        from core.team.fallback import FallbackManager
-
+    def _chat(self, messages: list[dict], temperature: float | None = None) -> str:
         try:
-            response = self.lead_provider.chat(
-                messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return response.text or ""
-
+            resp = self.lead_provider.chat(messages, temperature=temperature)
+            return resp.text or ""
         except Exception as exc:
-            # Пробуем fallback на другого агента.
-            self._note(f"Лидер {self.lead_name} упал: {exc}. Пробую запасного.")
+            self._note(f"Лидер {self.lead_name} упал: {exc}")
+            return ""
 
-            fallback = FallbackManager(
-                current=self.lead_name,
-                on_switch=self._on_fallback_switch,
-            )
+    # --- Парсинг JSON от LLM --------------------------------------------
 
-            alternative = fallback.pick_alternative()
-            if alternative is None:
-                # Нет альтернативы — пробрасываем исходную ошибку.
-                raise
+    @staticmethod
+    def _parse_json(text: str) -> dict | None:
+        if not text:
+            return None
+        text = text.strip()
+        # Убираем markdown-обёртку, если есть.
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+            text = re.sub(r"\s*```\s*$", "", text)
+        # Ищем первый {...}
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            return None
 
-            # Меняем лидера на время выполнения.
-            self.lead_name = alternative
-            self.lead_provider = self.registry.get_provider(alternative)
+    @staticmethod
+    def _parse_files(text: str) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for match in FILE_BLOCK_RE.finditer(text):
+            path = match.group("path").strip()
+            content = match.group("content").rstrip()
+            if path and content:
+                result[path] = content
+        return result
 
-            response = self.lead_provider.chat(
-                messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return response.text or ""
 
-    def _on_fallback_switch(self, old: str, new: str) -> bool:
-        """
-        Колбэк при переключении на запасного агента.
+    # --- Шаг: определить проект -----------------------------------------
 
-        ВАЖНО: НЕ спрашивает пользователя через input(), потому что
-        этот вызов может произойти во время активного Live-отображения.
-        Тогда процесс зависнет, ожидая ввода, а пользователь не увидит
-        вопроса — и весь агент зависнет.
+    def _detect_project(self, query: str) -> tuple[str, str]:
+        """Возвращает (action, project_name)."""
+        from prompts.templates import SYSTEM_PROJECT_DECIDER
+        from prompts.subagent_prompts import PROJECT_DECIDER_TASK_TEMPLATE
 
-        Вместо этого тихо соглашаемся на переключение и записываем
-        событие в заметки.
-        """
-        self._note(f"Автоматическое переключение: {old} → {new}")
-        return True
+        projects = list_projects()
+        if projects:
+            lines = []
+            for p in projects[:20]:
+                lang = p.get("language") or "?"
+                lines.append(f"- {p['name']} ({lang})")
+            projects_list = "\n".join(lines)
+        else:
+            projects_list = "(нет проектов)"
 
-    # -------------------------------------------------------------------------
-    #  Планирование
-    # -------------------------------------------------------------------------
+        prompt = PROJECT_DECIDER_TASK_TEMPLATE.format(
+            query=query,
+            projects_list=projects_list,
+        )
+        messages = [
+            {"role": "system", "content": SYSTEM_PROJECT_DECIDER},
+            {"role": "user", "content": prompt},
+        ]
+        raw = self._chat(messages, temperature=0.1)
+        parsed = self._parse_json(raw)
 
-    def _plan_task(self, query: str) -> str:
-        """
-        Планирует задачу через модель лидера.
+        if not parsed:
+            from utils.naming import guess_project_name_from_query
+            return ("new", guess_project_name_from_query(query))
 
-        Отправляет запрос планировщику (SYSTEM_PLANNER) и возвращает
-        план. Если что-то пошло не так — возвращает заглушку, чтобы
-        можно было продолжить генерацию.
+        action = str(parsed.get("action", "new")).lower()
+        if action not in ("continue", "create", "new"):
+            action = "new"
 
-        Исключения не выбрасывает — вместо этого возвращает текст-ошибку.
-        """
+        name = str(parsed.get("project_name", "")).strip()
+        if not name:
+            from utils.naming import guess_project_name_from_query
+            name = guess_project_name_from_query(query)
+
+        return (action, name)
+
+    def _open_or_create_project(self, action: str, name: str) -> Project:
+        if action == "continue":
+            proj = Project.open(name)
+            if proj is not None:
+                emit("project.opened", {"name": proj.name})
+                self._note(f"Открыт проект: {proj.name}")
+                return proj
+
+        proj = Project.create(name)
+        emit("project.created", {"name": proj.name})
+        self._note(f"Создан проект: {proj.name}")
+        return proj
+
+    # --- Шаг: планирование ----------------------------------------------
+
+    def _plan(self, query: str, project: Project) -> dict:
         from prompts.templates import SYSTEM_PLANNER
         from prompts.subagent_prompts import PLANNER_TASK_TEMPLATE
 
-        user_prompt = PLANNER_TASK_TEMPLATE.format(query=query)
+        files = project.list_files()
+        files_list = "\n".join(f"- {f}" for f in files) if files else "(пусто)"
+
+        history_ctx = project.get_context_for_llm(limit=5) or "(нет истории)"
+
+        prompt = PLANNER_TASK_TEMPLATE.format(
+            query=query,
+            project_name=project.name,
+            language=project.language or "(не определён)",
+            files_list=files_list,
+            history_context=history_ctx,
+        )
         messages = [
             {"role": "system", "content": SYSTEM_PLANNER},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": prompt},
         ]
+        raw = self._chat(messages, temperature=0.3)
+        parsed = self._parse_json(raw)
 
-        try:
-            plan = self._chat_with_lead(messages)
-            if plan.strip():
-                return plan.strip()
-        except Exception as exc:
-            self._note(f"Планирование не удалось: {exc}")
+        if not parsed:
+            return {
+                "language": "python",
+                "goal": query,
+                "steps": ["реализовать задачу"],
+                "requirements": [],
+                "edge_cases": [],
+                "files_to_modify": [],
+                "files_to_create": [],
+            }
 
-        # Фолбэк: простой текстовый план без модели.
-        return f"Language: auto\nGoal: {query}\nSteps:\n1. Solve the task."
+        return parsed
 
-    # -------------------------------------------------------------------------
-    #  Определение языка для генерации
-    # -------------------------------------------------------------------------
 
-    def _detect_language_from_plan(self, plan: str, query: str) -> str:
-        """
-        Пытается определить язык программирования из плана или запроса.
+    # --- Шаг: генерация кода --------------------------------------------
 
-        Ищет строку "Language: <lang>" в плане. Если не находит —
-        пробует угадать по ключевым словам в запросе.
-
-        Возвращает каноническое имя языка или "python" как дефолт.
-        """
-        import re
-
-        # 1. Ищем "Language: xxx" в плане.
-        match = re.search(r"Language\s*:\s*([A-Za-z0-9#+\-]+)", plan)
-        if match:
-            return self._normalize_language(match.group(1))
-
-        # 2. Ищем ключевые слова в запросе.
-        text = (plan + " " + query).lower()
-
-        aliases = {
-            "python": "python", "питон": "python",
-            "c++": "cpp", "cpp": "cpp", "плюсы": "cpp",
-            "rust": "rust", "раст": "rust",
-            "go": "go", "golang": "go", "го": "go",
-            "java ": "java", "джава": "java",
-            "javascript": "javascript", "js ": "javascript", "нода": "javascript",
-            "c#": "csharp", "csharp": "csharp", "си шарп": "csharp",
-            "kotlin": "kotlin", "котлин": "kotlin",
-            "swift": "swift", "свифт": "swift",
-            "ruby": "ruby", "руби": "ruby",
-            "php": "php",
-            "dart": "dart",
-            "elixir": "elixir",
-            "haskell": "haskell", "хаскель": "haskell",
-            "lua": "lua", "луа": "lua",
-            "c ": "c",
-        }
-
-        for key, canonical in aliases.items():
-            if key in text:
-                return canonical
-
-        # 3. Дефолт.
-        return "python"
-
-    @staticmethod
-    def _normalize_language(raw: str) -> str:
-        """
-        Приводит произвольное имя языка к каноническому.
-
-        Использует таблицу алиасов из subagents/coder.py, чтобы не
-        дублировать логику.
-        """
-        if not raw:
-            return "python"
-        try:
-            from subagents.coder import LANGUAGE_ALIASES
-            return LANGUAGE_ALIASES.get(raw.strip().lower(), raw.strip().lower())
-        except Exception:
-            return raw.strip().lower()
-
-    # -------------------------------------------------------------------------
-    #  Генерация кода
-    # -------------------------------------------------------------------------
-
-    def _generate_code(
-        self,
-        query: str,
-        plan: str,
-        language: str,
-        research: str = "",
-    ) -> tuple[str, str]:
-        """
-        Просит лидера написать код.
-
-        Возвращает кортеж (raw_response, extracted_code).
-
-        Если ответ пустой — возвращает ("", "").
-        """
+    def _generate(self, query: str, project: Project, plan: dict) -> dict[str, str]:
         from prompts.templates import SYSTEM_CODER
         from prompts.subagent_prompts import CODER_TASK_TEMPLATE
 
-        user_prompt = CODER_TASK_TEMPLATE.format(
+        # Собираем содержимое файлов, которые надо изменить.
+        to_modify = plan.get("files_to_modify", []) or []
+        existing_parts = []
+        for rel in to_modify:
+            content = project.read_file(rel)
+            if content:
+                existing_parts.append(f"### {rel}\n{content}")
+        existing_files = "\n\n".join(existing_parts) if existing_parts else "(нет)"
+
+        plan_str = json.dumps(plan, ensure_ascii=False, indent=2)
+
+        prompt = CODER_TASK_TEMPLATE.format(
             query=query,
-            plan=plan,
-            research=research or "(no research performed)",
+            project_name=project.name,
+            language=plan.get("language", ""),
+            plan=plan_str,
+            existing_files=existing_files,
         )
         messages = [
             {"role": "system", "content": SYSTEM_CODER},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": prompt},
         ]
+        raw = self._chat(messages, temperature=0.2)
+        files = self._parse_files(raw)
 
-        try:
-            raw = self._chat_with_lead(messages, temperature=0.2)
-        except Exception as exc:
-            self._note(f"Генерация кода не удалась: {exc}")
-            return "", ""
+        if not files:
+            # Фолбэк: пробуем как один блок ```lang ... ```
+            block = re.search(r"```[a-zA-Z0-9_+\-#]*\s*\n(.*?)```", raw, re.DOTALL)
+            if block:
+                lang = plan.get("language", "python")
+                ext = {"python": ".py", "go": ".go", "rust": ".rs",
+                       "cpp": ".cpp", "c": ".c", "java": ".java",
+                       "javascript": ".js"}.get(lang, ".txt")
+                files = {f"main{ext}": block.group(1).rstrip()}
 
-        # Извлекаем код из ответа.
-        code = self._extract_code(raw)
-        return raw, code
+        return files
 
-    def _fix_code(
-        self,
-        language: str,
-        code: str,
-        stderr: str,
-        stdout: str,
-        iteration: int,
-    ) -> tuple[str, str]:
-        """
-        Просит лидера исправить код по ошибке компиляции.
+    # --- Шаг: компиляция/запуск -----------------------------------------
 
-        Возвращает кортеж (raw_response, extracted_code).
-        """
-        from prompts.templates import SYSTEM_CODER
-        from prompts.subagent_prompts import FIX_TASK_TEMPLATE
+    def _run(self, project: Project, files: dict[str, str], language: str) -> dict:
+        # Пока используем существующий TesterSubagent для компиляции/запуска
+        # во временной папке. Проект сохраняется отдельно.
+        if not files:
+            return {"stdout": "", "stderr": "нет файлов", "exit_code": -1,
+                    "stage": "no_files", "duration": 0.0, "language": language}
 
-        user_prompt = FIX_TASK_TEMPLATE.format(
-            language=language,
-            code=code,
-            stderr=stderr,
-            stdout=stdout,
-            iteration=iteration,
-        )
-        messages = [
-            {"role": "system", "content": SYSTEM_CODER},
-            {"role": "user", "content": user_prompt},
-        ]
+        # Берём первый файл как основной.
+        first_path = next(iter(files))
+        code = files[first_path]
 
-        try:
-            raw = self._chat_with_lead(messages, temperature=0.2)
-        except Exception as exc:
-            self._note(f"Фикс не удался: {exc}")
-            return "", ""
-
-        new_code = self._extract_code(raw)
-        return raw, new_code
-
-    @staticmethod
-    def _extract_code(text: str) -> str:
-        """
-        Извлекает первый блок кода из ответа модели.
-
-        Поддерживает стандартный markdown-формат с ```язык ... ```.
-        """
-        if not text:
-            return ""
-
-        import re
-
-        pattern = re.compile(
-            r"```(?:[a-zA-Z0-9_+\-#]*)\s*\n(.*?)```",
-            re.DOTALL,
-        )
-        match = pattern.search(text)
-        if match:
-            return match.group(1).rstrip()
-
-        # Если блоков нет — возможно, весь ответ является кодом.
-        # Тогда возвращаем как есть (но это редкий случай).
-        return ""
-
-    # -------------------------------------------------------------------------
-    #  Исследование
-    # -------------------------------------------------------------------------
-
-    def _do_research(self, query: str) -> str:
-        """
-        Запускает исследование через субагента researcher.
-
-        Возвращает текстовый контекст. Если что-то упало — возвращает
-        пустую строку (не валим всю задачу).
-        """
-        try:
-            from subagents.researcher import ResearcherSubagent
-            researcher = ResearcherSubagent()
-            context = researcher.run(query)
-            if context:
-                self._note(f"Собрано контекста: {len(context)} символов.")
-            return context or ""
-        except Exception as exc:
-            self._note(f"Исследование не удалось: {exc}")
-            return ""
-
-    # -------------------------------------------------------------------------
-    #  Компиляция и запуск
-    # -------------------------------------------------------------------------
-
-    def _compile_and_run(self, language: str, code: str) -> dict[str, Any]:
-        """
-        Компилирует и запускает код через subagents/tester.py.
-
-        Возвращает словарь с ключами stdout, stderr, exit_code, stage.
-        """
         try:
             from subagents.tester import TesterSubagent
             tester = TesterSubagent()
             return tester.test(language, code)
         except Exception as exc:
-            return {
-                "stdout": "",
-                "stderr": f"Ошибка тестирования: {exc}",
-                "exit_code": -1,
-                "duration": 0.0,
-                "language": language,
-                "stage": "internal",
-            }
+            return {"stdout": "", "stderr": f"Ошибка теста: {exc}",
+                    "exit_code": -1, "stage": "internal",
+                    "duration": 0.0, "language": language}
 
-    # -------------------------------------------------------------------------
-    #  Основной метод
-    # -------------------------------------------------------------------------
+    def _fix(self, project: Project, files: dict[str, str], language: str,
+             stderr: str, stdout: str, iteration: int) -> dict[str, str]:
+        from prompts.templates import SYSTEM_FIXER
+        from prompts.subagent_prompts import FIXER_TASK_TEMPLATE
 
-    def solve(
-        self,
-        query: str,
-        skills: list[str] | None = None,
-    ) -> Any:
-        """
-        Основной цикл работы команды.
+        parts = []
+        for path, content in files.items():
+            parts.append(f"### {path}\n{content}")
+        current = "\n\n".join(parts)
 
-        Аргументы:
-            query  — запрос пользователя.
-            skills — активные скиллы (deep_research, reasoning, analysis).
+        prompt = FIXER_TASK_TEMPLATE.format(
+            iteration=iteration,
+            project_name=project.name,
+            language=language,
+            current_files=current,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        messages = [
+            {"role": "system", "content": SYSTEM_FIXER},
+            {"role": "user", "content": prompt},
+        ]
+        raw = self._chat(messages, temperature=0.2)
+        new_files = self._parse_files(raw)
+        return new_files or files
 
-        Возвращает:
-            AgentResult с финальным кодом и метриками.
-        """
+    # --- Главный метод ---------------------------------------------------
+
+    def solve(self, query: str, skills: list[str] | None = None) -> Any:
         from core import config
 
         self.steps = []
         self.notes = []
         self._started_at = time.time()
-
         active_skills = skills or []
 
-        # --- Шаг 0: определяем лидера --------------------------------------
+        # 1. Определяем лидера.
         lead_step = self._begin_step("инициализация", "определяю главного агента")
         self.lead_name = self.registry.get_lead()
-
         try:
             self.lead_provider = self.registry.get_provider(self.lead_name)
         except Exception as exc:
             self._end_step(lead_step)
-            return self._build_result(
-                success=False,
-                stderr=f"Не удалось создать провайдера {self.lead_name}: {exc}",
-            )
-
+            return self._build_result(success=False,
+                stderr=f"Провайдер {self.lead_name}: {exc}")
         if not self.registry.is_configured(self.lead_name):
             self._end_step(lead_step)
-            return self._build_result(
-                success=False,
-                stderr=t(
-                    "err.provider_not_configured",
-                    name=self.lead_name,
-                ),
-            )
-
-        self._note(f"Лидер команды: {self.lead_name}")
+            return self._build_result(success=False,
+                stderr=f"Провайдер {self.lead_name} не настроен.")
         self._end_step(lead_step)
 
-        # --- Шаг 1: планирование -------------------------------------------
-        plan_step = self._begin_step("планирование", "разбираю задачу")
-        plan = self._plan_task(query)
+        # 2. Определяем проект.
+        emit("planning.start", {"query": query})
+        det_step = self._begin_step("проект", "определяю куда писать код")
+        action, proj_name = self._detect_project(query)
+        self.project = self._open_or_create_project(action, proj_name)
+        self._end_step(det_step)
+
+        # 3. Планируем.
+        plan_step = self._begin_step("планирование", "составляю план")
+        plan = self._plan(query, self.project)
         self._end_step(plan_step)
+        language = plan.get("language", "python")
 
-        # --- Шаг 2: определение языка --------------------------------------
-        language = self._detect_language_from_plan(plan, query)
-        self._note(f"Язык программирования: {language}")
-
-        # --- Шаг 3: исследование (если включён deep_research) -------------
+        # 4. Исследование (если включено).
         research = ""
         if "deep_research" in active_skills:
             res_step = self._begin_step("исследование", "ищу информацию")
-            research = self._do_research(query)
+            try:
+                from subagents.researcher import ResearcherSubagent
+                research = ResearcherSubagent().run(query) or ""
+            except Exception as exc:
+                self._note(f"Исследование не удалось: {exc}")
             self._end_step(res_step)
 
-        # --- Шаг 4: генерация кода -----------------------------------------
+        # 5. Генерация кода.
+        emit("codegen.start", {})
         gen_step = self._begin_step("генерация", "пишу код")
-        _, code = self._generate_code(query, plan, language, research)
+        files = self._generate(query, self.project, plan)
+        if not files:
+            self._end_step(gen_step)
+            return self._build_result(success=False, language=language,
+                plan=json.dumps(plan, ensure_ascii=False),
+                stderr="Код не сгенерирован.")
+        # Сохраняем файлы в проект.
+        for path, content in files.items():
+            self.project.write_file(path, content)
+            emit("codegen.file.done", {"file": path}, level=LEVEL_SUCCESS)
+        self.project.set_language(language)
         self._end_step(gen_step)
 
-        if not code.strip():
-            return self._build_result(
-                success=False,
-                language=language,
-                plan=plan,
-                stderr=t("result.no_code"),
-            )
-
-        # --- Шаг 5: цикл «компиляция → фикс» -------------------------------
-        final_stdout = ""
-        final_stderr = ""
-        final_exit_code = -1
+        # 6. Компиляция/запуск с фиксами.
+        final_stdout, final_stderr, final_exit = "", "", -1
         iterations = 0
-
-        for iteration in range(config.MAX_FIX_ITERATIONS + 1):
-            test_step = self._begin_step(
-                "компиляция",
-                f"{language}, попытка {iteration + 1}",
-            )
-            run_result = self._compile_and_run(language, code)
+        for i in range(config.MAX_FIX_ITERATIONS + 1):
+            test_step = self._begin_step("компиляция",
+                f"{language}, попытка {i+1}")
+            result = self._run(self.project, files, language)
             self._end_step(test_step)
-
-            final_stdout = run_result.get("stdout", "") or ""
-            final_stderr = run_result.get("stderr", "") or ""
-            final_exit_code = int(run_result.get("exit_code", -1))
-
-            # Успех?
-            if final_exit_code == 0 and not final_stderr.strip():
-                self._note(f"Успех на итерации {iteration + 1}.")
+            final_stdout = result.get("stdout", "") or ""
+            final_stderr = result.get("stderr", "") or ""
+            final_exit = int(result.get("exit_code", -1))
+            if final_exit == 0 and not final_stderr.strip():
                 break
-
-            # Попытки кончились?
-            if iteration >= config.MAX_FIX_ITERATIONS:
-                self._note("Исчерпаны попытки фикса.")
+            if i >= config.MAX_FIX_ITERATIONS:
                 break
-
-            # Пробуем исправить.
-            fix_step = self._begin_step(
-                "фикс",
-                f"итерация {iteration + 1}",
-            )
-            _, new_code = self._fix_code(
-                language=language,
-                code=code,
-                stderr=final_stderr,
-                stdout=final_stdout,
-                iteration=iteration + 1,
-            )
-            if new_code.strip():
-                code = new_code
-            else:
-                self._note("Кодер вернул пустой ответ — оставляю прежний код.")
+            fix_step = self._begin_step("фикс", f"итерация {i+1}")
+            files = self._fix(self.project, files, language,
+                              final_stderr, final_stdout, i+1)
+            for path, content in files.items():
+                self.project.write_file(path, content)
             self._end_step(fix_step)
-            iterations = iteration + 1
+            iterations = i + 1
 
-        # --- Финальный результат -------------------------------------------
-        success = final_exit_code == 0 and not final_stderr.strip()
+        success = final_exit == 0 and not final_stderr.strip()
+        primary_code = ""
+        if files:
+            primary_code = files[next(iter(files))]
+
+        # 7. Записываем задачу в историю.
+        try:
+            self.project.add_task(
+                query, "success" if success else "failure",
+                provider=self.lead_name,
+                model=self._lead_model(),
+                reasoning_time=time.time() - self._started_at,
+                files_created=list(files.keys()),
+            )
+        except Exception:
+            pass
+
+        emit("task.done", {"success": success},
+             level=LEVEL_SUCCESS if success else LEVEL_ERROR)
 
         return self._build_result(
             success=success,
             language=language,
-            code=code,
+            code=primary_code,
             stdout=final_stdout,
             stderr=final_stderr,
-            exit_code=final_exit_code,
+            exit_code=final_exit,
             iterations=iterations,
-            plan=plan,
+            plan=json.dumps(plan, ensure_ascii=False),
         )
 
-
-# =============================================================================
-#  ЭКСПОРТ
-# =============================================================================
 
 __all__ = ["TeamLead"]

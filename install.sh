@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # =============================================================================
-#  Codermuks in Termux — установщик v1.1.0
+#  Codermuks in Termux — установщик v1.2.0
 # =============================================================================
 #  Что делает этот скрипт:
 #    1. Проверяет, что мы в Termux.
@@ -43,7 +43,7 @@ echo " ╚██████╗╚██████╔╝██████╔�
 echo "  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝"
 echo "                         ▸  I N   T E R M U X  ◂"
 echo -e "${RESET}"
-echo -e "${CYAN}Установщик Codermuks in Termux v1.1.0${RESET}"
+echo -e "${CYAN}Установщик Codermuks in Termux v1.2.0${RESET}"
 echo ""
 
 # --- Проверка Termux -------------------------------------------------------
@@ -167,6 +167,7 @@ log_info "Шаг 4/8: Подготовка пользовательской ди
 USER_DIR="$HOME/.codermuks"
 mkdir -p "$USER_DIR"
 mkdir -p "$USER_DIR/artifacts"
+mkdir -p "$HOME/codermuks-workspace"
 mkdir -p "$USER_DIR/temp"
 log_success "Создана директория: $USER_DIR"
 
@@ -346,7 +347,7 @@ log_success "Все библиотеки на месте."
 # --- Финальное сообщение ---------------------------------------------------
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════════════════════════════${RESET}"
-echo -e "${GREEN}  ✔  Codermuks in Termux v1.1.0 успешно установлен!${RESET}"
+echo -e "${GREEN}  ✔  Codermuks in Termux v1.2.0 успешно установлен!${RESET}"
 echo -e "${GREEN}══════════════════════════════════════════════════════════════════${RESET}"
 echo ""
 

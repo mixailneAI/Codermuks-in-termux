@@ -1,7 +1,7 @@
 # =============================================================================
-#  Codermuks in Termux — оркестратор v1.1.0
+#  Codermuks in Termux — оркестратор v1.2.0
 # =============================================================================
-#  Что изменилось в v1.1.0:
+#  Что изменилось в v1.2.0:
 #    • Работает через TeamLead — команду из нескольких агентов.
 #    • Главный агент выбирается пользователем (по умолчанию — Mistral).
 #    • При падении главного агента — переключение на запасного.
@@ -25,6 +25,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+from core.events import emit
 
 
 # =============================================================================
@@ -67,7 +69,7 @@ class Agent:
     Главный агент. Связывает планировщик, кодера, тестировщика и
     файлового менеджера в единый рабочий цикл.
 
-    В v1.1.0 вся реальная работа делегируется в TeamLead, который
+    В v1.2.0 вся реальная работа делегируется в TeamLead, который
     сам решает, какой провайдер использовать для каждой задачи.
     Agent остаётся фасадом для обратной совместимости.
     """
@@ -101,17 +103,43 @@ class Agent:
         """
         step = Step(name=name, detail=detail, started_at=time.time())
         self.steps.append(step)
+
+        # Публикуем событие в шину — для LivePanel v1.2.0.
+        try:
+            stage = {
+                "планирование": "planning",
+                "генерация": "codegen",
+                "компиляция": "compile",
+                "фикс": "fix",
+                "исследование": "research",
+                "инициализация": "project",
+            }.get(name, name)
+            emit(f"{stage}.start", {"message": detail})
+        except Exception:
+            pass
+
         if self.on_step is not None:
             try:
                 self.on_step(step)
             except Exception:
-                # Ошибки колбэка не должны валить агента.
                 pass
         return step
 
     def _end_step(self, step: Step) -> None:
         """Закрывает шаг и считает его длительность."""
         step.duration = time.time() - step.started_at
+        try:
+            stage = {
+                "планирование": "planning",
+                "генерация": "codegen",
+                "компиляция": "compile",
+                "фикс": "fix",
+                "исследование": "research",
+                "инициализация": "project",
+            }.get(step.name, step.name)
+            emit(f"{stage}.done", {"message": step.detail})
+        except Exception:
+            pass
 
     def _note(self, message: str) -> None:
         """Добавляет заметку в общий список."""

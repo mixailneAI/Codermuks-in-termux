@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — конфигурация v1.1.0
+#  Codermuks in Termux — конфигурация v1.2.0
 # =============================================================================
 #  Этот модуль — единый источник правды о настройках проекта:
 #
@@ -40,7 +40,8 @@ KEY_FILE: Path = USER_DIR / "key.txt"             # API-ключи провай�
 LOG_FILE: Path = Path.home() / ".codermuks.log"   # лог работы
 
 # --- Директории ------------------------------------------------------------
-ARTIFACTS_DIR: Path = USER_DIR / "artifacts"      # сохранённые результаты
+ARTIFACTS_DIR: Path = USER_DIR / "artifacts"
+WORKSPACE_DIR: Path = Path.home() / "codermuks-workspace"      # сохранённые результаты
 TEMP_DIR: Path = USER_DIR / "temp"                # временные файлы компиляции
 
 
@@ -157,7 +158,7 @@ def ensure_dirs() -> None:
 def _default_config() -> dict[str, Any]:
     """Возвращает структуру config.json по умолчанию."""
     return {
-        "version": "1.1.0",
+        "version": "1.2.0",
         "language": None,
         "team_lead": DEFAULT_TEAM_LEAD,
         "fallback_order": list(DEFAULT_FALLBACK_ORDER),

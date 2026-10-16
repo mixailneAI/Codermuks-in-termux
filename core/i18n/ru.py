@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — русские строки интерфейса v1.1.0
+#  Codermuks in Termux — русские строки интерфейса v1.2.0
 # =============================================================================
 #  Все тексты интерфейса на русском языке. Ключи должны полностью
 #  совпадать с ключами в en.py — за этим следит translator.missing_keys()
@@ -28,7 +28,7 @@ STRINGS: dict[str, str] = {
 
     "welcome.banner":            "CODERMUKS в TERMUX",
     "welcome.subtitle":          "AI-агент для кода на базе Mistral",
-    "welcome.version":           "v1.1.0",
+    "welcome.version":           "v1.2.0",
     "welcome.ready":             "Готов. Введи задачу или /help для списка команд.",
 
     # -------------------------------------------------------------------------
@@ -46,6 +46,8 @@ STRINGS: dict[str, str] = {
     "cmd.help":                  "показать эту памятку",
     "cmd.exit":                  "выйти из программы",
     "cmd.changeagent":           "сменить главного агента команды",
+    "cmd.projects":              "мои проекты",
+    "cmd.history":               "история проектов",
     "cmd.language":              "сменить язык интерфейса",
     "cmd.langs":                 "список поддерживаемых языков программирования",
     "cmd.research":              "глубокое исследование (web + GitHub)",
@@ -58,6 +60,8 @@ STRINGS: dict[str, str] = {
     "cmd.name.help":             "/help",
     "cmd.name.exit":             "/exit",
     "cmd.name.changeagent":      "/changeagent",
+    "cmd.name.projects":         "/projects",
+    "cmd.name.history":          "/history",
     "cmd.name.language":         "/language",
     "cmd.name.langs":            "/langs",
     "cmd.name.research":         "/research",
@@ -233,9 +237,9 @@ STRINGS: dict[str, str] = {
     #  Установщик
     # -------------------------------------------------------------------------
 
-    "installer.banner":          "Codermuks in Termux — установщик v1.1.0",
+    "installer.banner":          "Codermuks in Termux — установщик v1.2.0",
     "installer.step":            "Шаг {current}/{total}",
-    "installer.done":            "Codermuks in Termux v1.1.0 успешно установлен!",
+    "installer.done":            "Codermuks in Termux v1.2.0 успешно установлен!",
     "installer.next_run":        "Запуск: codermuks",
     "installer.help":            "Справка: codermuks /help",
     "installer.uninstall":       "Удалить: bash uninstall.sh",

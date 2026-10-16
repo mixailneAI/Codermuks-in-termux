@@ -1,7 +1,7 @@
 # =============================================================================
-#  Codermuks in Termux — интерфейс командной строки v1.1.0
+#  Codermuks in Termux — интерфейс командной строки v1.2.0
 # =============================================================================
-#  Что нового в v1.1.0:
+#  Что нового в v1.2.0:
 #    • Все строки переведены через core.i18n.t().
 #    • Добавлена команда /changeagent — смена главного агента.
 #    • Добавлена команда /language — смена языка интерфейса.
@@ -35,6 +35,9 @@ from core.i18n import t, translator
 from core.team.agent_registry import get_registry
 from skills import modes as skills_mod
 from ui.agent_picker import pick_agent
+from ui.live_panel import LivePanel
+from ui.project_picker import print_projects
+from ui.history_view import show_history
 from utils import helpers
 
 
@@ -142,6 +145,8 @@ def print_memo() -> None:
 
     commands = [
         ("cmd.name.changeagent", "cmd.changeagent"),
+        ("cmd.name.projects",    "cmd.projects"),
+        ("cmd.name.history",     "cmd.history"),
         ("cmd.name.language",    "cmd.language"),
         ("cmd.name.research",    "cmd.research"),
         ("cmd.name.reason",      "cmd.reason"),
@@ -355,7 +360,7 @@ def print_result(result: Any) -> None:
     if result.exit_code >= 0:
         meta.add_row(f"{t('result.exit_code')}:", str(result.exit_code))
 
-    # Провайдер и модель (из AgentResult v1.1.0).
+    # Провайдер и модель (из AgentResult v1.2.0).
     used_provider = getattr(result, "used_provider", "")
     used_model = getattr(result, "used_model", "")
     if used_provider:
@@ -553,6 +558,20 @@ def handle_command(
         console.print()
         return True, active_skills
 
+    # --- /projects -------------------------------------------------------
+    if command in ("projects", "proj"):
+        print_projects()
+        return True, active_skills
+
+    # --- /history --------------------------------------------------------
+    if command in ("history", "hist"):
+        # Опциональный аргумент: имя проекта.
+        arg = ""
+        if len(parts) > 1:
+            arg = parts[1].strip()
+        show_history(arg)
+        return True, active_skills
+
     # --- /changeagent ----------------------------------------------------
     if command in ("changeagent", "agent", "switch"):
         pick_agent()
@@ -651,13 +670,17 @@ def run_query(query: str, active_skills: list[str]) -> None:
     Отправляет запрос в агент и показывает результат.
     """
     from core.agent import Agent
+    from core.events import get_bus
 
-    display = ReasoningDisplay()
+    display = LivePanel(console)
     display.start()
 
-    # Колбэк, который агент вызывает на каждом шаге.
+    # Колбэк для совместимости со старым Agent (Step).
     def on_step(step: Any) -> None:
-        display.update(step.name, step.detail)
+        # Событие уже эмитится через EventBus, но для агента v1.1
+        # продублируем вручную.
+        from core.events import emit
+        emit(f"step.{step.name}", {"message": step.detail})
 
     agent = Agent(on_step=on_step)
 
