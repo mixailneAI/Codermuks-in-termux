@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — главный агент (TeamLead) v1.2.0
+#  Codermuks in Termux — главный агент (TeamLead) v1.3.0
 # =============================================================================
 #  Что нового:
 #    • Работа через Project (создание/открытие реальных папок).
@@ -45,6 +45,7 @@ class TeamLead:
         self.lead_name: str = ""
         self.lead_provider: Any = None
         self.project: Project | None = None
+        self.forced_project: str = ""  # имя проекта, открытого через /open
 
     # --- Шаги ------------------------------------------------------------
 
@@ -151,6 +152,10 @@ class TeamLead:
 
     def _detect_project(self, query: str) -> tuple[str, str]:
         """Возвращает (action, project_name)."""
+        # Если пользователь открыл проект через /open — используем его.
+        if self.forced_project:
+            return ("continue", self.forced_project)
+
         from prompts.templates import SYSTEM_PROJECT_DECIDER
         from prompts.subagent_prompts import PROJECT_DECIDER_TASK_TEMPLATE
 
@@ -370,6 +375,62 @@ class TeamLead:
         plan = self._plan(query, self.project)
         self._end_step(plan_step)
         language = plan.get("language", "python")
+
+        # 3.5. Проверка библиотек.
+        requirements = plan.get("requirements", []) or []
+        if requirements:
+            lib_step = self._begin_step("библиотеки", "проверяю зависимости")
+            from core.library_manager import LibraryManager
+            lm = LibraryManager()
+            lib_result = lm.ensure_all(requirements)
+            self._end_step(lib_step)
+
+            # Записываем requirements.txt в проект.
+            try:
+                lm.write_requirements(
+                    self.project.path,
+                    requirements,
+                    installed=lib_result.get("installed", []),
+                )
+            except Exception:
+                pass
+
+            # Если чего-то не хватает — останавливаемся и говорим пользователю.
+            missing = lib_result.get("missing", [])
+            if missing:
+                missing_str = ", ".join(missing)
+                msg = (
+                    f"Не могу продолжить без библиотек: {missing_str}\n"
+                    f"Установи вручную:\n"
+                    f"  pip install {missing_str}\n"
+                    f"или:\n"
+                    f"  pkg install {missing_str}"
+                )
+                self._note(msg)
+                try:
+                    self.project.add_task(
+                        query, "failure",
+                        provider=self.lead_name,
+                        reasoning_time=time.time() - self._started_at,
+                    )
+                except Exception:
+                    pass
+                emit("task.done", {"success": False}, level=LEVEL_ERROR)
+                return self._build_result(
+                    success=False,
+                    language=language,
+                    plan=json.dumps(plan, ensure_ascii=False),
+                    stderr=msg,
+                )
+
+            # Если что-то доустановили — заметка.
+            installed = lib_result.get("installed", [])
+            if installed:
+                names = ", ".join(
+                    i["name"] if isinstance(i, dict) else str(i)
+                    for i in installed
+                )
+                self._note(f"Доустановлено: {names}")
 
         # 4. Исследование (если включено).
         research = ""

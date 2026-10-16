@@ -6,7 +6,7 @@
 
 ### AI coding agent for Termux — 4 free providers, real projects, full history
 
-[![Version](https://img.shields.io/badge/version-1.2.0-brightgreen?style=for-the-badge)](https://github.com/mixailneAI/Codermuks-in-termux/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen?style=for-the-badge)](https://github.com/mixailneAI/Codermuks-in-termux/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/platform-Termux-orange?style=for-the-badge&logo=android&logoColor=white)](https://termux.dev)
@@ -18,7 +18,7 @@
 
 ---
 
-## 🆕 What's new in v1.2.0 · Что нового в v1.2.0
+## 🆕 What's new in v1.3.0 · Что нового в v1.3.0
 
 <table>
 <tr>
@@ -71,12 +71,12 @@
 
 ### 📊 Version history · История версий
 
-- **v1.2.0** — current · текущая: real projects, history, live reasoning
+- **v1.3.0** — current · текущая: real projects, history, live reasoning
 - **v1.1.0** — multi-provider, i18n, tests
 - **v1.0.1** — fixes: filenames, install.sh, symlink
 - **v1.0.0** — initial release · первый релиз
 
-[Compare v1.1.0 → v1.2.0](https://github.com/mixailneAI/Codermuks-in-termux/compare/v1.1.0...v1.2.0)
+[Compare v1.1.0 → v1.3.0](https://github.com/mixailneAI/Codermuks-in-termux/compare/v1.1.0...v1.3.0)
 
 ---
 
@@ -86,7 +86,7 @@
 
 **Codermuks in Termux** is an autonomous AI coding agent that turns your Android terminal into a full development workspace. You describe a task — it writes the code, compiles it, runs it, catches errors, fixes them in a loop, and delivers the final result only when everything works cleanly.
 
-**What's new in v1.2.0:** Codermuks now works with **real projects**. Every task creates a named folder in `~/codermuks-workspace/`. It remembers what it did before, reads existing files to understand the context, and shows you a real-time reasoning chain in the live panel.
+**What's new in v1.3.0:** Codermuks now works with **real projects**. Every task creates a named folder in `~/codermuks-workspace/`. It remembers what it did before, reads existing files to understand the context, and shows you a real-time reasoning chain in the live panel.
 
 ```bash
 codermuks
@@ -306,7 +306,7 @@ Apache License 2.0 — see LICENSE for details.
 
 Codermuks in Termux — это автономный AI-агент для программирования, который превращает твой Android-терминал в полноценную среду разработки. Ты описываешь задачу — он пишет код, компилирует его, запускает, ловит ошибки, исправляет их в цикле и выдаёт финальный результат только тогда, когда всё работает без ошибок.
 
-Что нового в v1.2.0: Codermuks теперь работает с настоящими проектами. Каждая задача создаёт папку с осмысленным именем в ~/codermuks-workspace/. Он помнит, что делал раньше, читает существующие файлы для понимания контекста и показывает цепочку рассуждений в реальном времени.
+Что нового в v1.3.0: Codermuks теперь работает с настоящими проектами. Каждая задача создаёт папку с осмысленным именем в ~/codermuks-workspace/. Он помнит, что делал раньше, читает существующие файлы для понимания контекста и показывает цепочку рассуждений в реальном времени.
 
 ```bash
 codermuks

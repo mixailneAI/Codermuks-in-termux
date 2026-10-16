@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — управление workspace v1.2.0
+#  Codermuks in Termux — управление workspace v1.3.0
 # =============================================================================
 #  Что делает этот модуль:
 #    • создаёт и обслуживает ~/codermuks-workspace/;
@@ -163,7 +163,7 @@ def create_project(raw_name: str, language: str = "") -> Path:
         "language": language,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "modified_at": datetime.now().isoformat(timespec="seconds"),
-        "version": "1.2.0",
+        "version": "1.3.0",
     }
     write_metadata(project_path, metadata)
 

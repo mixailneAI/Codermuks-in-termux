@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — меню выбора проектов v1.2.0
+#  Codermuks in Termux — меню проектов v1.3.0
 # =============================================================================
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from rich.text import Text
 
 from core.project import Project
 from core.workspace import delete_project, list_projects
+from utils.exporter import export_project, export_info
 
 
 console = Console()
@@ -25,14 +26,12 @@ COLOR_DIM = "grey62"
 def _build_table() -> Table:
     projects = list_projects()
     table = Table(show_header=False, box=None, padding=(0, 1))
-
     table.add_column(justify="right", style=COLOR_ACCENT, no_wrap=True)
     table.add_column(style="white", no_wrap=True)
     table.add_column(style=COLOR_DIM, no_wrap=False)
-    table.add_column(style=COLOR_ACCENT, no_wrap=True)
 
     if not projects:
-        table.add_row("", "[dim]пока нет проектов[/dim]", "", "")
+        table.add_row("", "[dim]пока нет проектов[/dim]", "")
         return table
 
     for idx, p in enumerate(projects, start=1):
@@ -40,8 +39,7 @@ def _build_table() -> Table:
         lang = p.get("language") or "?"
         files = p.get("files_count", 0)
         info = f"{lang}, {files} файл(ов)"
-        table.add_row(f"[{idx}]", name, info, "")
-
+        table.add_row(f"[{idx}]", name, info)
     return table
 
 
@@ -68,59 +66,141 @@ def print_projects() -> None:
     console.print(Text(f"  Всего: {len(projects)}", style=COLOR_DIM))
     console.print(Text(f"  Путь: ~/codermuks-workspace/", style=COLOR_DIM))
     console.print()
+    console.print(Text("  Действия:", style=COLOR_ACCENT))
+    console.print(Text("    /open <имя>    — продолжить работу с проектом", style=COLOR_DIM))
+    console.print(Text("    /delete <имя>  — удалить проект", style=COLOR_DIM))
+    console.print(Text("    /export <имя>  — сохранить ZIP в память телефона", style=COLOR_DIM))
+    console.print(Text("    /deps <имя>    — зависимости проекта", style=COLOR_DIM))
+    console.print(Text("    /run <имя>     — запустить проект", style=COLOR_DIM))
+    console.print()
 
+
+# -----------------------------------------------------------------------------
+#  /open
+# -----------------------------------------------------------------------------
+
+def open_project(name: str) -> str:
+    """
+    Проверяет, что проект существует, и возвращает его имя.
+
+    Возвращает пустую строку, если проекта нет.
+    """
+    console.print()
+    if not name:
+        console.print(Text("  Укажи имя проекта: /open <имя>", style=COLOR_WARN))
+        console.print()
+        return ""
+
+    proj = Project.open(name)
+    if proj is None:
+        console.print(Text(f"  Проект '{name}' не найден.", style=COLOR_WARN))
+        console.print()
+        return ""
+
+    files = proj.list_files()
+    lang = proj.language or "?"
+
+    console.print(
+        Text(f"  ✔ Открыт проект: ", style=COLOR_MAIN)
+        + Text(f"{name} ", style=f"bold {COLOR_ACCENT}")
+        + Text(f"({lang}, {len(files)} файл(ов))", style=COLOR_DIM)
+    )
+    console.print(Text(f"    Дальше все задачи пойдут в него.", style=COLOR_DIM))
+    console.print()
+    return name
+
+
+# -----------------------------------------------------------------------------
+#  /delete
+# -----------------------------------------------------------------------------
+
+def delete_project_interactive(name: str) -> bool:
+    """Спрашивает подтверждение и удаляет проект."""
+    console.print()
+    if not name:
+        console.print(Text("  Укажи имя проекта: /delete <имя>", style=COLOR_WARN))
+        console.print()
+        return False
+
+    proj = Project.open(name)
+    if proj is None:
+        console.print(Text(f"  Проект '{name}' не найден.", style=COLOR_WARN))
+        console.print()
+        return False
+
+    try:
+        answer = console.input(
+            f"  Удалить проект '{name}'? [y/N]: "
+        ).strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        console.print()
+        return False
+
+    if answer not in ("y", "yes", "д", "да"):
+        console.print(Text("  Отменено.", style=COLOR_DIM))
+        console.print()
+        return False
+
+    if delete_project(name):
+        console.print(Text(f"  ✔ Проект '{name}' удалён.", style=COLOR_MAIN))
+    else:
+        console.print(Text("  ✘ Не удалось удалить.", style=COLOR_ERROR))
+    console.print()
+    return True
+
+
+# -----------------------------------------------------------------------------
+#  /export
+# -----------------------------------------------------------------------------
+
+def export_project_interactive(name: str) -> None:
+    """Экспортирует проект в ZIP."""
+    console.print()
+    if not name:
+        console.print(Text("  Укажи имя проекта: /export <имя>", style=COLOR_WARN))
+        console.print()
+        return
+
+    info = export_info(name)
+    if not info:
+        console.print(Text(f"  Проект '{name}' не найден.", style=COLOR_WARN))
+        console.print()
+        return
+
+    console.print(Text(f"  📦 Экспорт проекта {name}...", style=COLOR_ACCENT))
+    result = export_project(name)
+
+    if result is None:
+        console.print(Text("  ✘ Не удалось создать ZIP.", style=COLOR_ERROR))
+        console.print()
+        return
+
+    size_kb = result.stat().st_size / 1024
+    console.print(Text(f"  ✔ Готово: {result}", style=COLOR_MAIN))
+    console.print(Text(f"    Файлов: {info['files_count']}, {size_kb:.1f} КБ", style=COLOR_DIM))
+    console.print()
+
+
+# -----------------------------------------------------------------------------
+#  Старый pick_project (для совместимости)
+# -----------------------------------------------------------------------------
 
 def pick_project() -> Project | None:
-    """Простое меню выбора проекта для удаления."""
+    """Совместимость со старым API."""
     projects = list_projects()
     if not projects:
         console.print()
         console.print(Text("  Нет проектов.", style=COLOR_WARN))
         console.print()
         return None
-
     print_projects()
-    console.print(Text("  Введи номер проекта для удаления или 'exit':", style=COLOR_ACCENT))
-
-    try:
-        answer = console.input("  ▸ ").strip()
-    except (KeyboardInterrupt, EOFError):
-        console.print()
-        return None
-
-    if answer.lower() in ("exit", "q", "quit", "выход"):
-        return None
-
-    try:
-        idx = int(answer)
-    except ValueError:
-        console.print(Text("  Неверный ввод.", style=COLOR_WARN))
-        return None
-
-    if idx < 1 or idx > len(projects):
-        console.print(Text("  Такого номера нет.", style=COLOR_WARN))
-        return None
-
-    chosen = projects[idx - 1]
-    name = chosen["name"]
-
-    console.print()
-    console.print(Text(f"  Удалить проект '{name}'? [y/N]:", style=COLOR_ERROR))
-    try:
-        confirm = console.input("  ▸ ").strip().lower()
-    except (KeyboardInterrupt, EOFError):
-        return None
-
-    if confirm in ("y", "yes", "д", "да"):
-        if delete_project(name):
-            console.print(Text(f"  ✔ Проект '{name}' удалён.", style=COLOR_MAIN))
-        else:
-            console.print(Text("  ✘ Не удалось удалить.", style=COLOR_ERROR))
-    else:
-        console.print(Text("  Отменено.", style=COLOR_DIM))
-
-    console.print()
     return None
 
 
-__all__ = ["print_projects", "pick_project"]
+__all__ = [
+    "print_projects",
+    "pick_project",
+    "open_project",
+    "delete_project_interactive",
+    "export_project_interactive",
+]

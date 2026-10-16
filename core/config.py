@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — конфигурация v1.2.0
+#  Codermuks in Termux — конфигурация v1.3.0
 # =============================================================================
 #  Этот модуль — единый источник правды о настройках проекта:
 #
@@ -158,7 +158,7 @@ def ensure_dirs() -> None:
 def _default_config() -> dict[str, Any]:
     """Возвращает структуру config.json по умолчанию."""
     return {
-        "version": "1.2.0",
+        "version": "1.3.0",
         "language": None,
         "team_lead": DEFAULT_TEAM_LEAD,
         "fallback_order": list(DEFAULT_FALLBACK_ORDER),

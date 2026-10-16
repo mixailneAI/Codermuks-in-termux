@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — русские строки интерфейса v1.2.0
+#  Codermuks in Termux — русские строки интерфейса v1.3.0
 # =============================================================================
 #  Все тексты интерфейса на русском языке. Ключи должны полностью
 #  совпадать с ключами в en.py — за этим следит translator.missing_keys()
@@ -28,7 +28,7 @@ STRINGS: dict[str, str] = {
 
     "welcome.banner":            "CODERMUKS в TERMUX",
     "welcome.subtitle":          "AI-агент для кода на базе Mistral",
-    "welcome.version":           "v1.2.0",
+    "welcome.version":           "v1.3.0",
     "welcome.ready":             "Готов. Введи задачу или /help для списка команд.",
 
     # -------------------------------------------------------------------------
@@ -47,6 +47,12 @@ STRINGS: dict[str, str] = {
     "cmd.exit":                  "выйти из программы",
     "cmd.changeagent":           "сменить главного агента команды",
     "cmd.projects":              "мои проекты",
+    "cmd.open":                  "открыть проект для работы",
+    "cmd.close":                 "закрыть текущий проект",
+    "cmd.delete":                "удалить проект",
+    "cmd.export":                "экспорт проекта в ZIP",
+    "cmd.deps":                  "зависимости проекта",
+    "cmd.run":                   "запустить проект",
     "cmd.history":               "история проектов",
     "cmd.language":              "сменить язык интерфейса",
     "cmd.langs":                 "список поддерживаемых языков программирования",
@@ -61,6 +67,12 @@ STRINGS: dict[str, str] = {
     "cmd.name.exit":             "/exit",
     "cmd.name.changeagent":      "/changeagent",
     "cmd.name.projects":         "/projects",
+    "cmd.name.open":             "/open",
+    "cmd.name.close":            "/close",
+    "cmd.name.delete":           "/delete",
+    "cmd.name.export":           "/export",
+    "cmd.name.deps":             "/deps",
+    "cmd.name.run":              "/run",
     "cmd.name.history":          "/history",
     "cmd.name.language":         "/language",
     "cmd.name.langs":            "/langs",
@@ -237,9 +249,16 @@ STRINGS: dict[str, str] = {
     #  Установщик
     # -------------------------------------------------------------------------
 
-    "installer.banner":          "Codermuks in Termux — установщик v1.2.0",
+    "library.checking":          "Проверяю библиотеку: {name}",
+    "library.installing":        "Устанавливаю {name} через {method}...",
+    "library.installed":         "{name} установлена.",
+    "library.failed":            "Не удалось установить {name}",
+    "library.missing":           "Отсутствуют библиотеки: {names}",
+    "library.hint":              "Установите вручную: pip install {names}",
+
+    "installer.banner":          "Codermuks in Termux — установщик v1.3.0",
     "installer.step":            "Шаг {current}/{total}",
-    "installer.done":            "Codermuks in Termux v1.2.0 успешно установлен!",
+    "installer.done":            "Codermuks in Termux v1.3.0 успешно установлен!",
     "installer.next_run":        "Запуск: codermuks",
     "installer.help":            "Справка: codermuks /help",
     "installer.uninstall":       "Удалить: bash uninstall.sh",

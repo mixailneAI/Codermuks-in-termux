@@ -1,7 +1,7 @@
 # =============================================================================
-#  Codermuks in Termux — оркестратор v1.2.0
+#  Codermuks in Termux — оркестратор v1.3.0
 # =============================================================================
-#  Что изменилось в v1.2.0:
+#  Что изменилось в v1.3.0:
 #    • Работает через TeamLead — команду из нескольких агентов.
 #    • Главный агент выбирается пользователем (по умолчанию — Mistral).
 #    • При падении главного агента — переключение на запасного.
@@ -69,7 +69,7 @@ class Agent:
     Главный агент. Связывает планировщик, кодера, тестировщика и
     файлового менеджера в единый рабочий цикл.
 
-    В v1.2.0 вся реальная работа делегируется в TeamLead, который
+    В v1.3.0 вся реальная работа делегируется в TeamLead, который
     сам решает, какой провайдер использовать для каждой задачи.
     Agent остаётся фасадом для обратной совместимости.
     """
@@ -104,7 +104,7 @@ class Agent:
         step = Step(name=name, detail=detail, started_at=time.time())
         self.steps.append(step)
 
-        # Публикуем событие в шину — для LivePanel v1.2.0.
+        # Публикуем событие в шину — для LivePanel v1.3.0.
         try:
             stage = {
                 "планирование": "planning",
@@ -168,9 +168,13 @@ class Agent:
     #  Точка входа
     # -------------------------------------------------------------------------
 
-    def solve(self, query: str, skills: list[str] | None = None) -> AgentResult:
+    def solve(self, query: str, skills: list[str] | None = None,
+              forced_project: str = "") -> AgentResult:
         """
         Решает задачу пользователя.
+
+        forced_project — имя проекта, открытого через /open. Если задано,
+        TeamLead не будет определять проект сам, а пойдёт прямо в него.
 
         Аргументы:
             query  — запрос пользователя (естественный язык).
@@ -189,7 +193,7 @@ class Agent:
 
         if self._check_team():
             # Новый путь — через TeamLead.
-            return self._solve_via_team(query, skills or [])
+            return self._solve_via_team(query, skills or [], forced_project)
         else:
             # Старый путь — через mistral_client (v1.0.x).
             return self._solve_via_mistral(query, skills or [])
@@ -202,6 +206,7 @@ class Agent:
         self,
         query: str,
         skills: list[str],
+        forced_project: str = "",
     ) -> AgentResult:
         """
         Решение задачи через мультиагентную команду.
@@ -216,6 +221,8 @@ class Agent:
 
         try:
             lead = TeamLead(on_step=self._begin_step)
+            if forced_project:
+                lead.forced_project = forced_project
             result = lead.solve(query, skills=skills)
 
             # Дополняем result заметками и шагами из агента.

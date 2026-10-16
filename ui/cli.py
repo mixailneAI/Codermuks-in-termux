@@ -1,7 +1,7 @@
 # =============================================================================
-#  Codermuks in Termux — интерфейс командной строки v1.2.0
+#  Codermuks in Termux — интерфейс командной строки v1.3.0
 # =============================================================================
-#  Что нового в v1.2.0:
+#  Что нового в v1.3.0:
 #    • Все строки переведены через core.i18n.t().
 #    • Добавлена команда /changeagent — смена главного агента.
 #    • Добавлена команда /language — смена языка интерфейса.
@@ -36,7 +36,14 @@ from core.team.agent_registry import get_registry
 from skills import modes as skills_mod
 from ui.agent_picker import pick_agent
 from ui.live_panel import LivePanel
-from ui.project_picker import print_projects
+from ui.project_picker import (
+    print_projects,
+    open_project,
+    delete_project_interactive,
+    export_project_interactive,
+)
+from ui.deps_view import show_deps
+from ui.run_view import run_project
 from ui.history_view import show_history
 from utils import helpers
 
@@ -46,6 +53,9 @@ from utils import helpers
 # =============================================================================
 
 console = Console()
+
+# Проект, открытый через /open — все задачи идут в него.
+_forced_project: str = ""
 
 
 # =============================================================================
@@ -146,6 +156,11 @@ def print_memo() -> None:
     commands = [
         ("cmd.name.changeagent", "cmd.changeagent"),
         ("cmd.name.projects",    "cmd.projects"),
+        ("cmd.name.open",        "cmd.open"),
+        ("cmd.name.delete",      "cmd.delete"),
+        ("cmd.name.export",      "cmd.export"),
+        ("cmd.name.deps",        "cmd.deps"),
+        ("cmd.name.run",         "cmd.run"),
         ("cmd.name.history",     "cmd.history"),
         ("cmd.name.language",    "cmd.language"),
         ("cmd.name.research",    "cmd.research"),
@@ -360,7 +375,7 @@ def print_result(result: Any) -> None:
     if result.exit_code >= 0:
         meta.add_row(f"{t('result.exit_code')}:", str(result.exit_code))
 
-    # Провайдер и модель (из AgentResult v1.2.0).
+    # Провайдер и модель (из AgentResult v1.3.0).
     used_provider = getattr(result, "used_provider", "")
     used_model = getattr(result, "used_model", "")
     if used_provider:
@@ -525,6 +540,8 @@ def handle_command(
 
     Возвращает кортеж (продолжать_ли_цикл, обновлённый_список_скиллов).
     """
+    global _forced_project
+
     parts = line.strip().split(maxsplit=1)
     command = parts[0].lower().lstrip("/")
 
@@ -561,6 +578,52 @@ def handle_command(
     # --- /projects -------------------------------------------------------
     if command in ("projects", "proj"):
         print_projects()
+        return True, active_skills
+
+    # --- /open -----------------------------------------------------------
+    if command in ("open", "o"):
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        chosen = open_project(arg)
+        if chosen:
+            # Запоминаем выбранный проект в глобальной переменной.
+            _forced_project = chosen
+        return True, active_skills
+
+    # --- /close ----------------------------------------------------------
+    if command in ("close", "c"):
+        if _forced_project:
+            console.print(Text(f"  Закрыт проект: {_forced_project}", style=COLOR_DIM))
+            _forced_project = ""
+        else:
+            console.print(Text("  Проект не был открыт.", style=COLOR_DIM))
+        return True, active_skills
+
+    # --- /delete ---------------------------------------------------------
+    if command in ("delete", "del", "rm"):
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        delete_project_interactive(arg)
+        return True, active_skills
+
+    # --- /export ---------------------------------------------------------
+    if command in ("export", "exp"):
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        export_project_interactive(arg)
+        return True, active_skills
+
+    # --- /deps -----------------------------------------------------------
+    if command in ("deps", "deps-view", "requirements"):
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        show_deps(arg)
+        return True, active_skills
+
+    # --- /run ------------------------------------------------------------
+    if command in ("run", "r"):
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        if not arg:
+            console.print(Text("  Укажи имя проекта: /run <имя>", style=COLOR_WARN))
+            console.print()
+        else:
+            run_project(arg)
         return True, active_skills
 
     # --- /history --------------------------------------------------------
@@ -685,7 +748,12 @@ def run_query(query: str, active_skills: list[str]) -> None:
     agent = Agent(on_step=on_step)
 
     try:
-        result = agent.solve(query, skills=active_skills)
+        # Передаём выбранный через /open проект, если есть.
+        result = agent.solve(
+            query,
+            skills=active_skills,
+            forced_project=_forced_project,
+        )
     except KeyboardInterrupt:
         display.stop()
         console.print()
