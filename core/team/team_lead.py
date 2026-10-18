@@ -338,91 +338,207 @@ class TeamLead:
         new_files = self._parse_files(raw)
         return new_files or files
 
-    # --- Roblox-путь ------------------------------------------------------
+    # --- Roblox ----------------------------------------------------------
+
+    def _ask_roblox_path(self) -> str:
+        """
+        Спрашивает у пользователя путь к StudioMCP.
+
+        Возвращает сохранённый путь или пустую строку.
+        """
+        print()
+        print("  ⚠️  Roblox Studio не найден автоматически.")
+        print()
+        print("  Как подключить MCP в Roblox Studio:")
+        print("    1. Открой Roblox Studio.")
+        print("    2. Assistant → ⋯ → Manage MCP Servers → Enable.")
+        print("    3. Studio покажет готовую команду запуска StudioMCP.")
+        print("    4. Скопируй путь к исполняемому файлу.")
+        print()
+        print("  Примеры:")
+        print("    Windows: C:\\Users\\you\\AppData\\Local\\Roblox\\Versions\\...\\StudioMCP.exe")
+        print("    macOS:   /Applications/RobloxStudio.app/Contents/MacOS/StudioMCP")
+        print()
+        print("  Введи путь к StudioMCP (или пустую строку для отмены):")
+
+        try:
+            answer = input("  ▸ ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            return ""
+
+        if not answer:
+            return ""
+
+        from pathlib import Path
+        if not Path(answer).is_file():
+            print(f"  ✘ Файл не найден: {answer}")
+            return ""
+
+        from core.roblox.discovery import save_manual_path
+        save_manual_path(answer)
+        print(f"  ✔ Путь сохранён: {answer}")
+        return answer
+
+    def _ensure_roblox_connected(self) -> bool:
+        """
+        Убеждается, что Roblox подключён.
+
+        Если MCP не найден автоматически — спрашивает путь.
+        Возвращает True, если подключение удалось.
+        """
+        from core.roblox import is_available, ensure_connected, disconnect
+        from core.roblox.discovery import find_studio_mcp, clear_saved_path
+
+        # Уже подключено?
+        if is_available():
+            return True
+
+        # Пробуем найти и подключиться.
+        if ensure_connected(auto=True):
+            return True
+
+        # Не нашли. Спрашиваем у пользователя.
+        print()
+        print("  ⚠️  Для Roblox-задач нужен MCP-сервер Roblox Studio.")
+        path = self._ask_roblox_path()
+
+        if not path:
+            return False
+
+        # Пробуем подключиться с новым путём.
+        disconnect()
+        clear_saved_path()
+        if ensure_connected(auto=True):
+            return True
+
+        print(f"  ✘ Не удалось подключиться к {path}")
+        return False
 
     def _solve_roblox(self, query: str, plan: dict, language: str) -> Any:
         """
-        Решает задачу через Roblox-субагентов.
+        Решает задачу через Roblox-субагентов с итеративным циклом.
 
-        Вызывается только если:
-            • Roblox Studio подключён;
-            • в плане указано platform = "roblox".
+        Схема:
+            1. ScriptAgent — создаёт скрипты
+            2. WorldAgent  — создаёт объекты
+            3. TestAgent   — запускает playtest, читает консоль
+            4. Если есть ошибки → FixAgent исправляет → повтор
+            5. Максимум 3 итерации.
         """
-        from core.roblox import is_available
         from core.roblox.subagents import (
-            RobloxScriptAgent, RobloxWorldAgent, RobloxTestAgent,
+            RobloxScriptAgent, RobloxWorldAgent,
+            RobloxTestAgent, RobloxFixAgent,
         )
 
-        if not is_available():
+        if not self._ensure_roblox_connected():
             return self._build_result(
                 success=False,
-                language=language,
+                language="luau",
                 plan=json.dumps(plan, ensure_ascii=False),
-                stderr="Roblox Studio не подключён.",
+                stderr=(
+                    "Roblox Studio не подключён.\n"
+                    "Включи MCP в Studio (Assistant → ⋯ → Manage MCP Servers) "
+                    "и снова вызови задачу."
+                ),
             )
 
-        reports: list[str] = []
+        project_name = self.project.name if self.project else "roblox"
 
-        # 1. ScriptAgent
-        script_step = self._begin_step("roblox-script", "пишу скрипты")
-        try:
-            script_agent = RobloxScriptAgent(provider=self.lead_provider)
-            script_result = script_agent.run(
-                query,
-                project_name=self.project.name if self.project else "roblox",
-                plan=plan,
+        # === Итерации ===
+        max_iterations = 3
+        previous_errors = ""
+        all_reports: list[str] = []
+        final_success = False
+
+        for iteration in range(max_iterations):
+            iter_label = f"итерация {iteration + 1}/{max_iterations}"
+            self._note(f"Roblox {iter_label}")
+
+            # 1. ScriptAgent
+            script_step = self._begin_step("roblox-script", f"пишу скрипты ({iter_label})")
+            try:
+                script_agent = RobloxScriptAgent(provider=self.lead_provider)
+                script_result = script_agent.run(
+                    query, project_name=project_name, plan=plan,
+                    console_errors=previous_errors or "(нет)",
+                )
+                all_reports.append(script_result)
+                self._note(f"Script: {script_result[:150]}")
+            except Exception as exc:
+                all_reports.append(f"❌ ScriptAgent: {exc}")
+            self._end_step(script_step)
+
+            # 2. WorldAgent (только на первой итерации — объекты создаются один раз)
+            if iteration == 0:
+                world_step = self._begin_step("roblox-world", "создаю объекты")
+                try:
+                    world_agent = RobloxWorldAgent(provider=self.lead_provider)
+                    world_result = world_agent.run(
+                        query, project_name=project_name, plan=plan,
+                        console_errors="(нет)",
+                    )
+                    all_reports.append(world_result)
+                    self._note(f"World: {world_result[:150]}")
+                except Exception as exc:
+                    all_reports.append(f"❌ WorldAgent: {exc}")
+                self._end_step(world_step)
+
+            # 3. TestAgent
+            test_step = self._begin_step("roblox-test", f"тестирую ({iter_label})")
+            test_result = ""
+            try:
+                test_agent = RobloxTestAgent(provider=self.lead_provider)
+                test_result = test_agent.run(
+                    query, project_name=project_name,
+                    changes_summary="\n".join(all_reports[-2:]),
+                )
+                all_reports.append(test_result)
+                self._note(f"Test: {test_result[:150]}")
+            except Exception as exc:
+                all_reports.append(f"❌ TestAgent: {exc}")
+            self._end_step(test_step)
+
+            # 4. Проверяем — есть ли ошибки?
+            has_errors = (
+                "❌" in test_result
+                or "errors" in test_result.lower()
+                or "обнаружены ошибки" in test_result.lower()
+                or "stack traceback" in test_result.lower()
             )
-            reports.append(script_result)
-            self._note(f"ScriptAgent: {script_result[:200]}")
-        except Exception as exc:
-            reports.append(f"❌ ScriptAgent упал: {exc}")
-            self._note(f"ScriptAgent упал: {exc}")
-        self._end_step(script_step)
 
-        # 2. WorldAgent
-        world_step = self._begin_step("roblox-world", "создаю объекты")
-        try:
-            world_agent = RobloxWorldAgent(provider=self.lead_provider)
-            world_result = world_agent.run(
-                query,
-                project_name=self.project.name if self.project else "roblox",
-                plan=plan,
-            )
-            reports.append(world_result)
-            self._note(f"WorldAgent: {world_result[:200]}")
-        except Exception as exc:
-            reports.append(f"❌ WorldAgent упал: {exc}")
-            self._note(f"WorldAgent упал: {exc}")
-        self._end_step(world_step)
+            if not has_errors:
+                final_success = True
+                self._note(f"Успех на итерации {iteration + 1}")
+                break
 
-        # 3. TestAgent
-        test_step = self._begin_step("roblox-test", "тестирую")
-        try:
-            test_agent = RobloxTestAgent(provider=self.lead_provider)
-            test_result = test_agent.run(
-                query,
-                project_name=self.project.name if self.project else "roblox",
-                changes_summary="\n".join(reports),
-            )
-            reports.append(test_result)
-            self._note(f"TestAgent: {test_result[:200]}")
-        except Exception as exc:
-            reports.append(f"❌ TestAgent упал: {exc}")
-            self._note(f"TestAgent упал: {exc}")
-        self._end_step(test_step)
+            # 5. FixAgent
+            self._note(f"Ошибки — фикшу (итерация {iteration + 1})")
+            fix_step = self._begin_step("roblox-fix", f"исправляю ({iter_label})")
+            try:
+                fix_agent = RobloxFixAgent(provider=self.lead_provider)
+                fix_result = fix_agent.run(
+                    query,
+                    errors=test_result,
+                    scripts_state="(см. выше)",
+                )
+                all_reports.append(fix_result)
+                self._note(f"Fix: {fix_result[:150]}")
+            except Exception as exc:
+                all_reports.append(f"❌ FixAgent: {exc}")
+            self._end_step(fix_step)
 
-        # Формируем отчёт.
-        full_report = "\n\n".join(reports)
+            previous_errors = test_result
 
-        # Проверяем, есть ли ошибки.
-        has_errors = "❌" in full_report or "errors" in full_report.lower()
+        # === Финальный отчёт ===
+        full_report = "\n\n".join(all_reports)
 
         # Записываем в историю.
         try:
             if self.project:
                 self.project.add_task(
                     query,
-                    "success" if not has_errors else "failure",
+                    "success" if final_success else "failure",
                     provider=self.lead_name,
                     model=self._lead_model(),
                     reasoning_time=time.time() - self._started_at,
@@ -430,15 +546,18 @@ class TeamLead:
         except Exception:
             pass
 
-        emit("task.done", {"success": not has_errors},
-             level=LEVEL_SUCCESS if not has_errors else LEVEL_ERROR)
+        emit(
+            "task.done",
+            {"success": final_success},
+            level=LEVEL_SUCCESS if final_success else LEVEL_ERROR,
+        )
 
         return self._build_result(
-            success=not has_errors,
-            language=language,
+            success=final_success,
+            language="luau",
             code=full_report,
             stdout=full_report,
-            exit_code=0 if not has_errors else 1,
+            exit_code=0 if final_success else 1,
             plan=json.dumps(plan, ensure_ascii=False),
         )
 
@@ -495,15 +614,10 @@ class TeamLead:
 
         if platform == "roblox" or query_is_roblox:
             try:
-                from core.roblox import is_available as rbx_available
-                if rbx_available():
-                    self._note("Платформа: Roblox Studio (подключён)")
-                    return self._solve_roblox(query, plan, language)
-                else:
-                    self._note("Платформа: Roblox (Studio не подключён)")
-                    return self._solve_roblox_files(query, plan)
+                self._note("Платформа: Roblox")
+                return self._solve_roblox(query, plan, language)
             except Exception as exc:
-                self._note(f"Roblox-проверка упала: {exc}")
+                self._note(f"Roblox-обработка упала: {exc}")
 
         # 3.5. Проверка библиотек.
         requirements = plan.get("requirements", []) or []

@@ -399,6 +399,7 @@ class TestRobloxPrompts:
             query="test query",
             project_name="my-project",
             scripts_list="(none)",
+            console_errors="(none)",
             plan="{}",
         )
         assert "test query" in result
