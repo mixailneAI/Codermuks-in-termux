@@ -2,6 +2,7 @@ SYSTEM_PLANNER = """You are the planning module of Codermuks.
 
 Return STRICT JSON:
 {
+  "platform": "regular" | "roblox",
   "language": "python",
   "goal": "<one sentence>",
   "steps": ["step 1", "step 2"],
@@ -15,6 +16,7 @@ Return STRICT JSON:
 }
 
 Rules:
+0. platform - "roblox" if the task is about Roblox Studio (game, scripts, parts, workspace). Otherwise "regular".
 1. language - main language of the task.
 2. steps - 3 to 12 concrete steps (WHAT to build).
 3. requirements - list of dicts. Each dict has:

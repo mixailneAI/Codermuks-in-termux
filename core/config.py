@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — конфигурация v1.3.0
+#  Codermuks in Termux — конфигурация v1.4.0
 # =============================================================================
 #  Этот модуль — единый источник правды о настройках проекта:
 #
@@ -38,6 +38,7 @@ USER_DIR: Path = Path.home() / ".codermuks"
 CONFIG_FILE: Path = USER_DIR / "config.json"      # настройки (язык, team_lead, providers)
 KEY_FILE: Path = USER_DIR / "key.txt"             # API-ключи провайдеров
 LOG_FILE: Path = Path.home() / ".codermuks.log"   # лог работы
+ROBLOX_CONFIG_FILE: Path = USER_DIR / "roblox.json"   # путь к StudioMCP
 
 # --- Директории ------------------------------------------------------------
 ARTIFACTS_DIR: Path = USER_DIR / "artifacts"
@@ -158,7 +159,7 @@ def ensure_dirs() -> None:
 def _default_config() -> dict[str, Any]:
     """Возвращает структуру config.json по умолчанию."""
     return {
-        "version": "1.3.0",
+        "version": "1.4.0",
         "language": None,
         "team_lead": DEFAULT_TEAM_LEAD,
         "fallback_order": list(DEFAULT_FALLBACK_ORDER),
@@ -482,6 +483,46 @@ def is_termux() -> bool:
 def get_python_executable() -> str:
     """Возвращает путь к текущему интерпретатору Python."""
     return sys.executable
+
+
+# =============================================================================
+#  ROBLOX
+# =============================================================================
+
+def is_roblox_enabled() -> bool:
+    """Проверяет, включена ли интеграция с Roblox в config.json."""
+    try:
+        data = _load_config()
+        return bool(data.get("roblox", {}).get("enabled", True))
+    except Exception:
+        return True
+
+
+def get_roblox_studio_path() -> str:
+    """Возвращает сохранённый путь к StudioMCP (или пустую строку)."""
+    try:
+        if ROBLOX_CONFIG_FILE.exists():
+            data = json.loads(ROBLOX_CONFIG_FILE.read_text(encoding="utf-8"))
+            return str(data.get("studio_mcp_path", "")).strip()
+    except (json.JSONDecodeError, OSError):
+        pass
+    return ""
+
+
+def set_roblox_studio_path(path: str) -> None:
+    """Сохраняет путь к StudioMCP."""
+    ROBLOX_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    data: dict = {}
+    if ROBLOX_CONFIG_FILE.exists():
+        try:
+            data = json.loads(ROBLOX_CONFIG_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            data = {}
+    data["studio_mcp_path"] = path
+    ROBLOX_CONFIG_FILE.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 # =============================================================================

@@ -6,7 +6,7 @@
 
 ### AI coding agent for Termux — 4 free providers, real projects, full history
 
-[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen?style=for-the-badge)](https://github.com/mixailneAI/Codermuks-in-termux/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-brightgreen?style=for-the-badge)](https://github.com/mixailneAI/Codermuks-in-termux/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![Platform](https://img.shields.io/badge/platform-Termux-orange?style=for-the-badge&logo=android&logoColor=white)](https://termux.dev)
@@ -18,7 +18,7 @@
 
 ---
 
-## 🆕 What's new in v1.3.0 · Что нового в v1.3.0
+## 🆕 What's new in v1.4.0 · Что нового в v1.4.0
 
 <table>
 <tr>
@@ -30,53 +30,39 @@
 
 **✨ Added**
 
-- **Real projects** — every task creates a named folder in `~/codermuks-workspace/`
-- **Project history** — Codermuks remembers what was done before
-- **Context reading** — reads existing files to understand the project
-- **Smart naming** — `snake-game` instead of `project000001`
-- **Real-time reasoning chain** — you see every step of the agent
-- **`/projects`** — list, view, and delete your projects
-- **`/history <name>`** — see what was done in any project
+- **Roblox Studio integration via MCP** — Codermuks connects directly to Roblox Studio through the official Model Context Protocol server
+- **3 Roblox subagents** — ScriptAgent (writes Luau), WorldAgent (creates objects), TestAgent (runs playtest)
+- **Auto-discovery** — finds StudioMCP in Windows/macOS/Linux standard paths
+- **Zero config** — user just says "make a Roblox game" and it works
+- **MCP client** — pure Python stdlib, no external dependencies
 
 **🔧 Changed**
 
-- Launcher resolves symlinks correctly
-- No blocking `input()` during live display
-- `stdin=DEVNULL` prevents hangs on `input()` in generated code
-- Default Mistral model: `codestral-latest` (works on free tier)
+- Planner now returns `platform: "roblox" | "regular"`
+- TeamLead routes Roblox tasks to specialized subagents
+- CLI shows Roblox connection status at startup
 
 </td>
 <td>
 
 **✨ Добавлено**
 
-- **Настоящие проекты** — каждая задача создаёт папку в `~/codermuks-workspace/`
-- **История проектов** — Codermuks помнит, что было сделано раньше
-- **Чтение контекста** — читает существующие файлы, чтобы понять проект
-- **Умные имена** — `snake-game` вместо `project000001`
-- **Real-time цепочка рассуждений** — видно каждый шаг агента
-- **`/projects`** — список, просмотр и удаление проектов
-- **`/history <имя>`** — что было сделано в проекте
+- **Интеграция с Roblox Studio через MCP** — Codermuks подключается к Studio через официальный Model Context Protocol
+- **3 Roblox-субагента** — ScriptAgent (пишет Luau), WorldAgent (создаёт объекты), TestAgent (запускает playtest)
+- **Авто-обнаружение** — находит StudioMCP в стандартных местах Windows/macOS/Linux
+- **Ноль настройки** — пользователь просто говорит «сделай игру в Roblox» и всё работает
+- **MCP-клиент** — чистый Python stdlib, без зависимостей
 
 **🔧 Изменено**
 
-- Лаунчер корректно разыменовывает симлинки
-- Нет блокирующего `input()` во время Live-панели
-- `stdin=DEVNULL` — не зависает на `input()` в сгенерированном коде
-- Модель Mistral по умолчанию: `codestral-latest` (работает на free tier)
+- Планировщик возвращает `platform: "roblox" | "regular"`
+- TeamLead отправляет Roblox-задачи субагентам
+- CLI показывает статус подключения к Roblox
 
 </td>
 </tr>
 </table>
 
-### 📊 Version history · История версий
-
-- **v1.3.0** — current · текущая: real projects, history, live reasoning
-- **v1.1.0** — multi-provider, i18n, tests
-- **v1.0.1** — fixes: filenames, install.sh, symlink
-- **v1.0.0** — initial release · первый релиз
-
-[Compare v1.1.0 → v1.3.0](https://github.com/mixailneAI/Codermuks-in-termux/compare/v1.1.0...v1.3.0)
 
 ---
 
@@ -86,7 +72,7 @@
 
 **Codermuks in Termux** is an autonomous AI coding agent that turns your Android terminal into a full development workspace. You describe a task — it writes the code, compiles it, runs it, catches errors, fixes them in a loop, and delivers the final result only when everything works cleanly.
 
-**What's new in v1.3.0:** Codermuks now works with **real projects**. Every task creates a named folder in `~/codermuks-workspace/`. It remembers what it did before, reads existing files to understand the context, and shows you a real-time reasoning chain in the live panel.
+**What's new in v1.4.0:** Codermuks now works with **real projects**. Every task creates a named folder in `~/codermuks-workspace/`. It remembers what it did before, reads existing files to understand the context, and shows you a real-time reasoning chain in the live panel.
 
 ```bash
 codermuks
@@ -306,7 +292,7 @@ Apache License 2.0 — see LICENSE for details.
 
 Codermuks in Termux — это автономный AI-агент для программирования, который превращает твой Android-терминал в полноценную среду разработки. Ты описываешь задачу — он пишет код, компилирует его, запускает, ловит ошибки, исправляет их в цикле и выдаёт финальный результат только тогда, когда всё работает без ошибок.
 
-Что нового в v1.3.0: Codermuks теперь работает с настоящими проектами. Каждая задача создаёт папку с осмысленным именем в ~/codermuks-workspace/. Он помнит, что делал раньше, читает существующие файлы для понимания контекста и показывает цепочку рассуждений в реальном времени.
+Что нового в v1.4.0: Codermuks теперь работает с настоящими проектами. Каждая задача создаёт папку с осмысленным именем в ~/codermuks-workspace/. Он помнит, что делал раньше, читает существующие файлы для понимания контекста и показывает цепочку рассуждений в реальном времени.
 
 ```bash
 codermuks

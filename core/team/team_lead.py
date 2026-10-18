@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — главный агент (TeamLead) v1.3.0
+#  Codermuks in Termux — главный агент (TeamLead) v1.4.0
 # =============================================================================
 #  Что нового:
 #    • Работа через Project (создание/открытие реальных папок).
@@ -338,6 +338,110 @@ class TeamLead:
         new_files = self._parse_files(raw)
         return new_files or files
 
+    # --- Roblox-путь ------------------------------------------------------
+
+    def _solve_roblox(self, query: str, plan: dict, language: str) -> Any:
+        """
+        Решает задачу через Roblox-субагентов.
+
+        Вызывается только если:
+            • Roblox Studio подключён;
+            • в плане указано platform = "roblox".
+        """
+        from core.roblox import is_available
+        from core.roblox.subagents import (
+            RobloxScriptAgent, RobloxWorldAgent, RobloxTestAgent,
+        )
+
+        if not is_available():
+            return self._build_result(
+                success=False,
+                language=language,
+                plan=json.dumps(plan, ensure_ascii=False),
+                stderr="Roblox Studio не подключён.",
+            )
+
+        reports: list[str] = []
+
+        # 1. ScriptAgent
+        script_step = self._begin_step("roblox-script", "пишу скрипты")
+        try:
+            script_agent = RobloxScriptAgent(provider=self.lead_provider)
+            script_result = script_agent.run(
+                query,
+                project_name=self.project.name if self.project else "roblox",
+                plan=plan,
+            )
+            reports.append(script_result)
+            self._note(f"ScriptAgent: {script_result[:200]}")
+        except Exception as exc:
+            reports.append(f"❌ ScriptAgent упал: {exc}")
+            self._note(f"ScriptAgent упал: {exc}")
+        self._end_step(script_step)
+
+        # 2. WorldAgent
+        world_step = self._begin_step("roblox-world", "создаю объекты")
+        try:
+            world_agent = RobloxWorldAgent(provider=self.lead_provider)
+            world_result = world_agent.run(
+                query,
+                project_name=self.project.name if self.project else "roblox",
+                plan=plan,
+            )
+            reports.append(world_result)
+            self._note(f"WorldAgent: {world_result[:200]}")
+        except Exception as exc:
+            reports.append(f"❌ WorldAgent упал: {exc}")
+            self._note(f"WorldAgent упал: {exc}")
+        self._end_step(world_step)
+
+        # 3. TestAgent
+        test_step = self._begin_step("roblox-test", "тестирую")
+        try:
+            test_agent = RobloxTestAgent(provider=self.lead_provider)
+            test_result = test_agent.run(
+                query,
+                project_name=self.project.name if self.project else "roblox",
+                changes_summary="\n".join(reports),
+            )
+            reports.append(test_result)
+            self._note(f"TestAgent: {test_result[:200]}")
+        except Exception as exc:
+            reports.append(f"❌ TestAgent упал: {exc}")
+            self._note(f"TestAgent упал: {exc}")
+        self._end_step(test_step)
+
+        # Формируем отчёт.
+        full_report = "\n\n".join(reports)
+
+        # Проверяем, есть ли ошибки.
+        has_errors = "❌" in full_report or "errors" in full_report.lower()
+
+        # Записываем в историю.
+        try:
+            if self.project:
+                self.project.add_task(
+                    query,
+                    "success" if not has_errors else "failure",
+                    provider=self.lead_name,
+                    model=self._lead_model(),
+                    reasoning_time=time.time() - self._started_at,
+                )
+        except Exception:
+            pass
+
+        emit("task.done", {"success": not has_errors},
+             level=LEVEL_SUCCESS if not has_errors else LEVEL_ERROR)
+
+        return self._build_result(
+            success=not has_errors,
+            language=language,
+            code=full_report,
+            stdout=full_report,
+            exit_code=0 if not has_errors else 1,
+            plan=json.dumps(plan, ensure_ascii=False),
+        )
+
     # --- Главный метод ---------------------------------------------------
 
     def solve(self, query: str, skills: list[str] | None = None) -> Any:
@@ -375,6 +479,19 @@ class TeamLead:
         plan = self._plan(query, self.project)
         self._end_step(plan_step)
         language = plan.get("language", "python")
+
+        # 3.4. Проверка: это Roblox-задача?
+        platform = str(plan.get("platform", "")).strip().lower()
+        if platform == "roblox":
+            try:
+                from core.roblox import is_available as rbx_available
+                if rbx_available():
+                    self._note("Платформа: Roblox Studio")
+                    return self._solve_roblox(query, plan, language)
+                else:
+                    self._note("Roblox Studio не подключён — работаю без него.")
+            except Exception as exc:
+                self._note(f"Roblox-проверка упала: {exc}")
 
         # 3.5. Проверка библиотек.
         requirements = plan.get("requirements", []) or []

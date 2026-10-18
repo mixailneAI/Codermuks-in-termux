@@ -1,7 +1,7 @@
 # =============================================================================
-#  Codermuks in Termux — интерфейс командной строки v1.3.0
+#  Codermuks in Termux — интерфейс командной строки v1.4.0
 # =============================================================================
-#  Что нового в v1.3.0:
+#  Что нового в v1.4.0:
 #    • Все строки переведены через core.i18n.t().
 #    • Добавлена команда /changeagent — смена главного агента.
 #    • Добавлена команда /language — смена языка интерфейса.
@@ -375,7 +375,7 @@ def print_result(result: Any) -> None:
     if result.exit_code >= 0:
         meta.add_row(f"{t('result.exit_code')}:", str(result.exit_code))
 
-    # Провайдер и модель (из AgentResult v1.3.0).
+    # Провайдер и модель (из AgentResult v1.4.0).
     used_provider = getattr(result, "used_provider", "")
     used_model = getattr(result, "used_model", "")
     if used_provider:
@@ -822,6 +822,22 @@ def run() -> int:
     # --- Приветствие ------------------------------------------------------
     os.system("clear")
     print_banner()
+
+    # Тихо проверяем Roblox.
+    try:
+        from core.roblox import is_available as rbx_available, list_tools as rbx_tools_list
+        if rbx_available():
+            tool_count = len(rbx_tools_list())
+            console.print(
+                Text(
+                    f"  🔌 Roblox Studio подключён ({tool_count} инструментов)",
+                    style=COLOR_DIM,
+                )
+            )
+            console.print()
+    except Exception:
+        pass
+
     print_memo()
 
     # --- Активные скиллы (пусто при старте) ------------------------------

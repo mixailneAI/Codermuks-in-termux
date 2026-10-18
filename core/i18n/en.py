@@ -1,5 +1,5 @@
 # =============================================================================
-#  Codermuks in Termux — английские строки интерфейса v1.3.0
+#  Codermuks in Termux — английские строки интерфейса v1.4.0
 # =============================================================================
 #  Все тексты интерфейса на английском языке. Используется как:
 #    • основной язык для пользователей из других стран;
@@ -28,7 +28,7 @@ STRINGS: dict[str, str] = {
 
     "welcome.banner":            "CODERMUKS in TERMUX",
     "welcome.subtitle":          "AI coding agent — powered by Mistral",
-    "welcome.version":           "v1.3.0",
+    "welcome.version":           "v1.4.0",
     "welcome.ready":             "Ready. Type a task or /help for commands.",
 
     # -------------------------------------------------------------------------
@@ -256,9 +256,14 @@ STRINGS: dict[str, str] = {
     "library.missing":           "Missing libraries: {names}",
     "library.hint":              "Install manually: pip install {names}",
 
-    "installer.banner":          "Codermuks in Termux — installer v1.3.0",
+    "roblox.connected":           "Roblox Studio connected ({count} tools)",
+    "roblox.not_found":           "Roblox Studio not detected",
+    "roblox.step":                "Roblox {name}...",
+    "roblox.error":               "Roblox error: {error}",
+
+    "installer.banner":          "Codermuks in Termux — installer v1.4.0",
     "installer.step":            "Step {current}/{total}",
-    "installer.done":            "Codermuks in Termux v1.3.0 installed successfully!",
+    "installer.done":            "Codermuks in Termux v1.4.0 installed successfully!",
     "installer.next_run":        "Run: codermuks",
     "installer.help":            "Help: codermuks /help",
     "installer.uninstall":       "Remove: bash uninstall.sh",
