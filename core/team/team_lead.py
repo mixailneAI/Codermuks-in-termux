@@ -482,14 +482,26 @@ class TeamLead:
 
         # 3.4. Проверка: это Roblox-задача?
         platform = str(plan.get("platform", "")).strip().lower()
-        if platform == "roblox":
+
+        # Дополнительная проверка по ключевым словам в запросе.
+        query_lower = query.lower()
+        roblox_keywords = (
+            "roblox", "роблокс", "luau", "rblx",
+            "studio", "рблокс",
+            "game:getservice", "instance.new", "workspace",
+            "players.playeradded", "startsgame",
+        )
+        query_is_roblox = any(kw in query_lower for kw in roblox_keywords)
+
+        if platform == "roblox" or query_is_roblox:
             try:
                 from core.roblox import is_available as rbx_available
                 if rbx_available():
-                    self._note("Платформа: Roblox Studio")
+                    self._note("Платформа: Roblox Studio (подключён)")
                     return self._solve_roblox(query, plan, language)
                 else:
-                    self._note("Roblox Studio не подключён — работаю без него.")
+                    self._note("Платформа: Roblox (Studio не подключён)")
+                    return self._solve_roblox_files(query, plan)
             except Exception as exc:
                 self._note(f"Roblox-проверка упала: {exc}")
 

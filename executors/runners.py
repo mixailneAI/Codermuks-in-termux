@@ -134,6 +134,16 @@ LANG_CONFIG: dict[str, LanguageConfig] = {
         check_binary="java",
     ),
 
+    # --- Luau (Roblox) — не компилируется, только сохраняется ---------------
+    "luau": LanguageConfig(
+        name="luau",
+        display_name="Luau (Roblox)",
+        extension=".luau",
+        compile_cmd=None,
+        run_cmd=["true"],  # заглушка — не запускаем
+        check_binary="true",
+    ),
+
     # --- JavaScript (Node.js) ------------------------------------------------
     "javascript": LanguageConfig(
         name="javascript",
@@ -298,6 +308,18 @@ def run_code(language: str, code: str) -> dict:
         }
 
     cfg = LANG_CONFIG[language]
+
+    # Luau (Roblox) не компилируется и не запускается на Termux —
+    # это файл для Roblox Studio. Считаем успехом.
+    if language == "luau":
+        return {
+            "stdout": "Luau-файл сохранён. Вставь его в Roblox Studio вручную.",
+            "stderr": "",
+            "exit_code": 0,
+            "duration": 0.0,
+            "language": "luau",
+            "stage": "ok",
+        }
 
     # --- Шаг 2: проверяем наличие компилятора/рантайма --------------------
     if not _check_binary(cfg.check_binary):
