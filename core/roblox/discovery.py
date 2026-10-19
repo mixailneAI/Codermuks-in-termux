@@ -110,6 +110,12 @@ def clear_saved_path() -> None:
             pass
 
 
+def find_studio_mcp_url() -> str:
+    """Возвращает сохранённый URL удалённого MCP-сервера."""
+    from core import config
+    return config.get_roblox_mcp_url()
+
+
 def find_studio_mcp() -> str:
     """Ищет MCP-сервер. Сначала сохранённый, потом авто-поиск."""
     saved = load_saved_path()

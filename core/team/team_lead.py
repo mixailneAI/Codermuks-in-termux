@@ -341,44 +341,58 @@ class TeamLead:
     # --- Roblox ----------------------------------------------------------
 
     def _ask_roblox_path(self) -> str:
-        """
-        Спрашивает у пользователя путь к StudioMCP.
+        """Спрашивает путь к StudioMCP. Live-панель на время ввода замирает."""
+        from core.events import emit
+        from pathlib import Path
 
-        Возвращает сохранённый путь или пустую строку.
-        """
-        print()
-        print("  ⚠️  Roblox Studio не найден автоматически.")
-        print()
-        print("  Как подключить MCP в Roblox Studio:")
-        print("    1. Открой Roblox Studio.")
-        print("    2. Assistant → ⋯ → Manage MCP Servers → Enable.")
-        print("    3. Studio покажет готовую команду запуска StudioMCP.")
-        print("    4. Скопируй путь к исполняемому файлу.")
-        print()
-        print("  Примеры:")
-        print("    Windows: C:\\Users\\you\\AppData\\Local\\Roblox\\Versions\\...\\StudioMCP.exe")
-        print("    macOS:   /Applications/RobloxStudio.app/Contents/MacOS/StudioMCP")
-        print()
-        print("  Введи путь к StudioMCP (или пустую строку для отмены):")
+        emit("ui.pause", {})
 
         try:
-            answer = input("  ▸ ").strip()
-        except (KeyboardInterrupt, EOFError):
             print()
-            return ""
+            print("  \u23f8  Рассуждение приостановлено для ввода.")
+            print()
+            print("  \u26a0\ufe0f  Roblox Studio не найден автоматически.")
+            print()
+            print("  ВАЖНО: Roblox Studio должен быть на той же машине,")
+            print("         что и Codermuks.")
+            print("         Если ты в Termux (Android), а Studio на ПК —")
+            print("         запусти Codermuks на ПК, а не на телефоне.")
+            print()
+            print("  Как подключить MCP в Roblox Studio:")
+            print("    1. Открой Roblox Studio.")
+            print("    2. Assistant → \u22ef → Manage MCP Servers → Enable.")
+            print("    3. Studio покажет готовую команду запуска StudioMCP.")
+            print("    4. Скопируй путь к исполняемому файлу.")
+            print()
+            print("  Примеры:")
+            print("    Windows: C:\\Users\\you\\AppData\\Local\\Roblox\\Versions\\...\\StudioMCP.exe")
+            print("    macOS:   /Applications/RobloxStudio.app/Contents/MacOS/StudioMCP")
+            print()
+            print("  Введи путь к StudioMCP (или Enter для отмены):")
 
-        if not answer:
-            return ""
+            try:
+                answer = input("  \u25b8 ").strip()
+            except KeyboardInterrupt:
+                print()
+                raise
+            except EOFError:
+                print()
+                return ""
 
-        from pathlib import Path
-        if not Path(answer).is_file():
-            print(f"  ✘ Файл не найден: {answer}")
-            return ""
+            if not answer:
+                return ""
 
-        from core.roblox.discovery import save_manual_path
-        save_manual_path(answer)
-        print(f"  ✔ Путь сохранён: {answer}")
-        return answer
+            if not Path(answer).is_file():
+                print(f"  \u2718 Файл не найден: {answer}")
+                return ""
+
+            from core.roblox.discovery import save_manual_path
+            save_manual_path(answer)
+            print(f"  \u2714 Путь сохранён: {answer}")
+            return answer
+        finally:
+            emit("ui.resume", {})
+
 
     def _ensure_roblox_connected(self) -> bool:
         """

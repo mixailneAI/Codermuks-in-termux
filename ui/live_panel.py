@@ -43,6 +43,7 @@ class LivePanel:
         self._thread = None
         self._stop = None
         self._unsubscribe = None
+        self._paused_at: float = 0.0
 
     # -------------------------------------------------------------------------
     #  Обработка событий
@@ -51,6 +52,14 @@ class LivePanel:
     def _on_event(self, event: Event) -> None:
         """Реакция на событие из EventBus."""
         name = event.name
+
+        # Пауза/резюме — для ввода пользователя.
+        if name == "ui.pause":
+            self._pause()
+            return
+        if name == "ui.resume":
+            self._resume()
+            return
 
         # Начало этапа.
         if name.endswith(".start") or name in (
@@ -147,6 +156,50 @@ class LivePanel:
             except Exception:
                 pass
             time.sleep(0.25)
+
+    def _pause(self) -> None:
+        """Останавливает Live и поток обновления на время ввода."""
+        if self._live is not None:
+            try:
+                self._live.stop()
+            except Exception:
+                pass
+            self._live = None
+
+        if self._stop is not None:
+            self._stop.set()
+
+        if self._thread is not None:
+            try:
+                self._thread.join(timeout=1.0)
+            except Exception:
+                pass
+            self._thread = None
+
+        if self._paused_at == 0.0:
+            self._paused_at = time.time()
+
+    def _resume(self) -> None:
+        """Возобновляет Live после ввода. Учитывает паузу в таймере."""
+        if self._paused_at > 0.0:
+            pause_duration = time.time() - self._paused_at
+            self._started_at += pause_duration
+            self._paused_at = 0.0
+
+        if self._live is not None:
+            return
+
+        import threading
+        self._live = Live(
+            self._render(),
+            console=self.console,
+            refresh_per_second=4,
+            transient=True,
+        )
+        self._live.start()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._auto_refresh, daemon=True)
+        self._thread.start()
 
     def start(self) -> None:
         self._started_at = time.time()

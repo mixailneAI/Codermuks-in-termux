@@ -39,6 +39,7 @@ CONFIG_FILE: Path = USER_DIR / "config.json"      # настройки (язык
 KEY_FILE: Path = USER_DIR / "key.txt"             # API-ключи провайдеров
 LOG_FILE: Path = Path.home() / ".codermuks.log"   # лог работы
 ROBLOX_CONFIG_FILE: Path = USER_DIR / "roblox.json"   # путь к StudioMCP
+ROBLOX_MCP_URL: str = ""  # URL удалённого MCP-сервера (например http://192.168.1.50:3030/mcp)
 
 # --- Директории ------------------------------------------------------------
 ARTIFACTS_DIR: Path = USER_DIR / "artifacts"
@@ -525,7 +526,16 @@ def set_roblox_studio_path(path: str) -> None:
     )
 
 
-# =============================================================================
+def get_roblox_mcp_url() -> str:
+    """Возвращает URL удалённого MCP-сервера."""
+    return ROBLOX_MCP_URL
+
+
+def set_roblox_mcp_url(url: str) -> None:
+    """Сохраняет URL удалённого MCP-сервера."""
+    global ROBLOX_MCP_URL
+    ROBLOX_MCP_URL = url.strip()
+
 #  ИНИЦИАЛИЗАЦИЯ ПРИ ИМПОРТЕ
 # =============================================================================
 

@@ -635,6 +635,26 @@ def handle_command(
         show_history(arg)
         return True, active_skills
 
+    # --- /roblox ---------------------------------------------------------
+    if command == "roblox":
+        arg = parts[1].strip() if len(parts) > 1 else ""
+        if arg.startswith("http://") or arg.startswith("https://"):
+            from core import config
+            config.set_roblox_mcp_url(arg)
+            console.print(Text(f"  ✔ URL MCP-сервера сохранён: {arg}", style=COLOR_MAIN))
+            console.print()
+        elif arg == "disconnect":
+            from core import config
+            config.set_roblox_mcp_url("")
+            console.print(Text("  ✔ URL MCP-сервера сброшен.", style=COLOR_DIM))
+            console.print()
+        else:
+            console.print(Text("  Использование:", style=COLOR_DIM))
+            console.print(Text("    /roblox <url>        — подключиться к удалённому MCP", style=COLOR_DIM))
+            console.print(Text("    /roblox disconnect   — сбросить URL", style=COLOR_DIM))
+            console.print()
+        return True, active_skills
+
     # --- /changeagent ----------------------------------------------------
     if command in ("changeagent", "agent", "switch"):
         pick_agent()

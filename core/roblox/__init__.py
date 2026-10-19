@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.mcp_http_client import HTTPMCPClient
 from core.mcp_client import (
     MCPClient,
     MCPError,
@@ -55,6 +56,19 @@ def ensure_connected(auto: bool = True) -> bool:
     if not auto:
         return False
 
+    # 1. Пробуем URL (если сохранён).
+    from core import config
+    url = config.get_roblox_mcp_url()
+    if url:
+        try:
+            client = HTTPMCPClient(url=url)
+            client.connect()
+            set_client(client)
+            return True
+        except Exception:
+            pass
+
+    # 2. Пробуем локальный файл.
     path = find_studio_mcp()
     if not path:
         return False
