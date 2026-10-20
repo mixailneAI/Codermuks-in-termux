@@ -46,6 +46,7 @@ class TeamLead:
         self.lead_provider: Any = None
         self.project: Project | None = None
         self.forced_project: str = ""  # имя проекта, открытого через /open
+        self._last_error: str = ""  # текст последней ошибки провайдера
 
     # --- Шаги ------------------------------------------------------------
 
@@ -108,13 +109,98 @@ class TeamLead:
 
     # --- Общение с лидером ----------------------------------------------
 
+    # --- Общение с лидером с fallback ------------------------------------
+
+    def _is_permanent_error(self, error_text: str) -> bool:
+        """Permanent — ошибка аккаунта (не деньги, не временно)."""
+        low = error_text.lower()
+        return any(kw in low for kw in (
+            "402", "insufficient", "balance", "payment required",
+            "401", "403", "unauthorized", "invalid api key",
+            "forbidden", "no permission", "quota",
+        ))
+
     def _chat(self, messages: list[dict], temperature: float | None = None) -> str:
+        """
+        Отправляет запрос лидеру. При падении — fallback на следующего.
+
+        Логика:
+            1. Пробуем текущего лидера.
+            2. Если permanent error (402/401/403) — молча переключаемся.
+            3. Если временная ошибка — спрашиваем пользователя.
+            4. Если альтернатив нет — возвращаем "".
+        """
+        from core.team.fallback import FallbackManager
+        from core.events import emit
+
         try:
             resp = self.lead_provider.chat(messages, temperature=temperature)
             return resp.text or ""
         except Exception as exc:
-            self._note(f"Лидер {self.lead_name} упал: {exc}")
+            error_text = str(exc)
+            self._note(f"Лидер {self.lead_name} упал: {error_text}")
+            self._last_error = error_text
+
+        # Fallback
+        fallback = FallbackManager(
+            current=self.lead_name,
+            on_switch=self._on_fallback_switch,
+        )
+        alternative = fallback.pick_alternative()
+
+        if alternative is None:
+            self._note("Нет доступных альтернатив.")
             return ""
+
+        # Переключаемся.
+        old_lead = self.lead_name
+        self._note(f"Переключаюсь {old_lead} → {alternative}")
+        self.lead_name = alternative
+        try:
+            self.lead_provider = self.registry.get_provider(alternative)
+        except Exception as exc:
+            self._note(f"Не удалось создать провайдер {alternative}: {exc}")
+            return ""
+
+        # Пробуем на новом.
+        try:
+            resp = self.lead_provider.chat(messages, temperature=temperature)
+            return resp.text or ""
+        except Exception as exc:
+            self._note(f"Альтернатива {alternative} тоже упала: {exc}")
+            return ""
+
+    def _on_fallback_switch(self, old: str, new: str) -> bool:
+        """
+        Колбэк FallbackManager при переключении.
+
+        Для permanent ошибок (402/401/403) — автода.
+        Иначе — спрашиваем с pause LivePanel.
+        """
+        from core.events import emit
+
+        err = getattr(self, "_last_error", "").lower()
+
+        # Permanent — соглашаемся молча, чтобы не мучить пользователя.
+        if self._is_permanent_error(err):
+            self._note(f"Авто-переключение {old} → {new} (permanent error)")
+            return True
+
+        # Временная ошибка — спрашиваем.
+        emit("ui.pause", {})
+        try:
+            try:
+                question = (
+                    f"Провайдер {old} недоступен. "
+                    f"Переключиться на {new}? [y/n]:"
+                )
+                answer = input(f"  {question} ").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                return False
+            return answer in ("y", "yes", "д", "да")
+        finally:
+            emit("ui.resume", {})
+
 
     # --- Парсинг JSON от LLM --------------------------------------------
 
