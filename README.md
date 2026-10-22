@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.png" alt="Codermuks in Termux — banner" width="800">
+<img src="assets/banner.jpg" alt="Codermuks in Termux — banner" width="800">
 
 # 🤖 CODERMUKS IN TERMUX
 
@@ -436,7 +436,7 @@ Apache License 2.0 — подробности в LICENSE.
 
 <div align="center">
 
-<img src="assets/logo.png" alt="Codermuks logo" width="120">
+<img src="assets/logo.jpg" alt="Codermuks logo" width="120">
 
 💚 Спасибо, что используешь Codermuks! · Thanks for using Codermuks!
 
